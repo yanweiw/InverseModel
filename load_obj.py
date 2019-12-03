@@ -15,7 +15,7 @@ table_scaling = 0.8
 arm_span = 0.8
 min_height = 1.02
 rest_height = 1.5
-home = [0.3, 0, min_height]
+home = [0.3, 0, 1.3]
 
 def main():
     """
@@ -76,16 +76,16 @@ def main():
         # get_img()
         # test arc
         for i in list([4, 3, 2.5, 2]):
-            robot.arm.set_ee_pose([arm_span*np.sin(np.pi/i),
-            arm_span*np.cos(np.pi/i), rest_height], origin[1])
+            robot.arm.set_ee_pose([arm_span*np.sin(np.pi-np.pi/i),
+            arm_span*np.cos(np.pi-np.pi/i), rest_height], origin[1])
             time.sleep(time_to_sleep)
             get_img()
-            robot.arm.set_ee_pose([arm_span*np.sin(np.pi/i),
-            arm_span*np.cos(np.pi/i), min_height], origin[1])
+            robot.arm.set_ee_pose([arm_span*np.sin(np.pi-np.pi/i),
+            arm_span*np.cos(np.pi-np.pi/i), min_height], origin[1])
             time.sleep(time_to_sleep)
             get_img()
-            robot.arm.set_ee_pose([arm_span*np.sin(np.pi/i),
-            arm_span*np.cos(np.pi/i), rest_height], origin[1])
+            robot.arm.set_ee_pose([arm_span*np.sin(np.pi-np.pi/i),
+            arm_span*np.cos(np.pi-np.pi/i), rest_height], origin[1])
             time.sleep(time_to_sleep)
             get_img()
 
