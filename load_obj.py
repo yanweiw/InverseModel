@@ -12,10 +12,10 @@ from airobot.utils.pb_util import get_body_state
 # table length = 1.2
 # table wideth = 1, but effective arm reach is 0.9
 table_scaling = 0.8
-arm_span = 0.7
+arm_span = 0.8
 min_height = 1.02
 rest_height = 1.5
-home = [0.2, 0, min_height]
+home = [0.3, 0, min_height]
 
 def main():
     """
@@ -50,7 +50,45 @@ def main():
         rgb, depth = robot.cam.get_images(get_rgb=True, get_depth=True)
 
     # test run
-    
+    def test():
+        time_to_sleep = 0.5
+        go_home()
+        pose = robot.arm.get_ee_pose()
+        time.sleep(time_to_sleep)
+        get_img()
+        # # test boundary
+        # robot.arm.set_ee_pose([pose[0][0], pose[0][1]+0.6, min_height], origin[1])
+        # time.sleep(time_to_sleep)
+        # get_img()
+        # robot.arm.move_ee_xyz([0, -1.2, 0])
+        # time.sleep(time_to_sleep)
+        # get_img()
+        # pose = robot.arm.get_ee_pose()
+        # robot.arm.set_ee_pose([pose[0][0], pose[0][1], rest_height], origin[1])
+        # time.sleep(time_to_sleep)
+        # get_img()
+        # robot.arm.move_ee_xyz([0, 1.2, 0])
+        # time.sleep(time_to_sleep)
+        # get_img()
+        # pose = robot.arm.get_ee_pose()
+        # robot.arm.set_ee_pose([pose[0][0], pose[0][1], min_height], origin[1])
+        # time.sleep(time_to_sleep)
+        # get_img()
+        # test arc
+        for i in list([4, 3, 2.5, 2]):
+            robot.arm.set_ee_pose([arm_span*np.sin(np.pi/i),
+            arm_span*np.cos(np.pi/i), rest_height], origin[1])
+            time.sleep(time_to_sleep)
+            get_img()
+            robot.arm.set_ee_pose([arm_span*np.sin(np.pi/i),
+            arm_span*np.cos(np.pi/i), min_height], origin[1])
+            time.sleep(time_to_sleep)
+            get_img()
+            robot.arm.set_ee_pose([arm_span*np.sin(np.pi/i),
+            arm_span*np.cos(np.pi/i), rest_height], origin[1])
+            time.sleep(time_to_sleep)
+            get_img()
+
 
     # # log object
     # pos, quat, lin_vel, ang_vel = get_body_state(box_id)
