@@ -48,8 +48,8 @@ def main():
     # init camera
     def get_img():
         # screenshot camera images
-        focus_pt = [0.5, 0, 0]
-        robot.cam.setup_camera(focus_pt=focus_pt, dist=2.2, yaw=90, pitch=-90, roll=0)
+        focus_pt = [0.7, 0, 1]
+        robot.cam.setup_camera(focus_pt=focus_pt, dist=0.5, yaw=90, pitch=-45, roll=0)
         rgb, depth = robot.cam.get_images(get_rgb=True, get_depth=True)
 
     # test run
