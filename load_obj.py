@@ -23,10 +23,10 @@ table_y = 0
 table_z = 0.60
 box_pos = [table_x, table_y, 1]
 box_size = 0.02
-workspace_max_x = 0.8 
+workspace_max_x = 0.8 - 0.05
 workspace_min_x = 0.4
-workspace_max_y = 0.4
-workspace_min_y = -0.4
+workspace_max_y = 0.4 - 0.1
+workspace_min_y = -0.4 + 0.1
 
 
 def main():
@@ -56,8 +56,8 @@ def main():
     # init camera
     def get_img():
         # screenshot camera images
-        focus_pt = [0.7, 0, 1]
-        robot.cam.setup_camera(focus_pt=focus_pt, dist=0.5, yaw=90, pitch=-45, roll=0)
+        focus_pt = [0.7, 0, 1.]
+        robot.cam.setup_camera(focus_pt=focus_pt, dist=0.5, yaw=90, pitch=-60, roll=0)
         rgb, depth = robot.cam.get_images(get_rgb=True, get_depth=True)
 
     # test run
