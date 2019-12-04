@@ -9,13 +9,16 @@ from airobot.utils.pb_util import load_geom
 from airobot.utils.pb_util import get_body_state
 
 # under scale factor
-# table length = 1.2
-# table wideth = 1, but effective arm reach is 0.9
-table_scaling = 0.8
-arm_span = 0.8
-min_height = 1.02
-rest_height = 1.5
-home = [0.3, 0, 1.3]
+table_length = 1.0
+table_wideth = 0.6 # but effective arm reach is 0.9
+table_scaling = 0.6
+arm_span = 0.9
+min_height = 1.0
+rest_height = 1.3
+home = [0.3, 0, rest_height]
+table_x = 0.59
+table_y = 0
+table_z = 0.60
 
 def main():
     """
@@ -34,12 +37,12 @@ def main():
     go_home()
 
     # load table
-    table_ori = euler2quat([0, 0, np.pi/2])
-    table_pos = [0.6, 0, 0.5]
+    table_ori = euler2quat([0, 0, np.pi/2.0])
+    table_pos = [table_x, table_y, table_z]
     table_id = load_urdf('table/table.urdf', table_pos, table_ori, scaling=table_scaling)
 
     # load box
-    box_pos = [0.6, 0, 1]
+    box_pos = [table_x, table_y, 1]
     box_id = load_geom('box', size=0.02, mass=1, base_pos=box_pos, rgba=[1, 0, 0, 1])
 
     # init camera
@@ -54,38 +57,41 @@ def main():
         time_to_sleep = 0.5
         go_home()
         pose = robot.arm.get_ee_pose()
+        robot.arm.set_ee_pose([pose[0][0], pose[0][1], min_height], origin[1])
         time.sleep(time_to_sleep)
         get_img()
-        # # test boundary
-        # robot.arm.set_ee_pose([pose[0][0], pose[0][1]+0.6, min_height], origin[1])
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # robot.arm.move_ee_xyz([0, -1.2, 0])
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # pose = robot.arm.get_ee_pose()
-        # robot.arm.set_ee_pose([pose[0][0], pose[0][1], rest_height], origin[1])
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # robot.arm.move_ee_xyz([0, 1.2, 0])
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # pose = robot.arm.get_ee_pose()
-        # robot.arm.set_ee_pose([pose[0][0], pose[0][1], min_height], origin[1])
-        # time.sleep(time_to_sleep)
-        # get_img()
+        # test boundary
+        robot.arm.set_ee_pose([pose[0][0], pose[0][1]+table_length/2.0, min_height], origin[1])
+        # robot.arm.eetool.close()
+        time.sleep(time_to_sleep)
+        get_img()
+        robot.arm.move_ee_xyz([0, -table_length, 0])
+        time.sleep(time_to_sleep)
+        get_img()
+        pose = robot.arm.get_ee_pose()
+        robot.arm.set_ee_pose([pose[0][0], pose[0][1], rest_height], origin[1])
+        time.sleep(time_to_sleep)
+        get_img()
+        robot.arm.move_ee_xyz([0, table_length, 0])
+        time.sleep(time_to_sleep)
+        get_img()
+        pose = robot.arm.get_ee_pose()
+        robot.arm.set_ee_pose([pose[0][0], pose[0][1], min_height], origin[1])
+        time.sleep(time_to_sleep)
+        get_img()
         # test arc
-        for i in list([4, 3, 2.5, 2]):
-            robot.arm.set_ee_pose([arm_span*np.sin(np.pi-np.pi/i),
-            arm_span*np.cos(np.pi-np.pi/i), rest_height], origin[1])
+        for i in list([np.pi/3.0, np.pi/2.5, np.pi/2.0,
+                    np.pi*3/5.0, np.pi*2/3.0]):
+            robot.arm.set_ee_pose([arm_span*np.sin(i),
+            arm_span*np.cos(i), rest_height], origin[1])
             time.sleep(time_to_sleep)
             get_img()
-            robot.arm.set_ee_pose([arm_span*np.sin(np.pi-np.pi/i),
-            arm_span*np.cos(np.pi-np.pi/i), min_height], origin[1])
+            robot.arm.set_ee_pose([arm_span*np.sin(i),
+            arm_span*np.cos(i), min_height], origin[1])
             time.sleep(time_to_sleep)
             get_img()
-            robot.arm.set_ee_pose([arm_span*np.sin(np.pi-np.pi/i),
-            arm_span*np.cos(np.pi-np.pi/i), rest_height], origin[1])
+            robot.arm.set_ee_pose([arm_span*np.sin(i),
+            arm_span*np.cos(i), rest_height], origin[1])
             time.sleep(time_to_sleep)
             get_img()
 
