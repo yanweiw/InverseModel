@@ -126,6 +126,11 @@ def main():
             obj_pos, obj_quat, _, _ = get_body_state(box_id)
             obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
             obj_x, obj_y, obj_z = obj_pos
+            if obj_z < 0.5: # cube fall on the ground
+                reset_body(box_id, box_pos)
+                obj_pos, obj_quat, _, _ = get_body_state(box_id)
+                obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
+                obj_x, obj_y, obj_z = obj_pos
             while True:
                 # choose random poke point on the object
                 poke_x = np.random.random()*box_size + obj_x - box_size/2.0
