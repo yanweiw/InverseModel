@@ -61,7 +61,7 @@ def main():
         robot.cam.setup_camera(focus_pt=focus_pt, dist=0.5, yaw=90, pitch=-60, roll=0)
         rgb, depth = robot.cam.get_images(get_rgb=True, get_depth=True)
         # crop the rgb
-        img = rgb[50:350, 0:640]
+        img = rgb[40:360, 0:640]
         # low pass filter : Gaussian blur
         # blurred_img = cv2.GaussianBlur(img.astype('float32'), (5, 5), 0)
         small_img = cv2.resize(img.astype('float32'), dsize=(200, 100),
@@ -161,9 +161,15 @@ def main():
             robot.arm.move_ee_xyz([end_x-start_x, end_y-start_y, 0])
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height])
             next_img = get_img()
+            with open('x_y_pos.txt', 'a') as file:
+                file.write('%d %f %f %f %f %f %f %f %f %f %f\n' % \
+                    (index, start_x, start_y, end_x, end_y,
+                    obj_x, obj_y, obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3]))
             cv2.imwrite('images/' + str(index) +'.png',
                         cv2.cvtColor(curr_img, cv2.COLOR_RGB2BGR))
             curr_img = next_img
+            if index % 1000 == 0:
+                ar.log_info('number of pokes: %sk' % str(index/1000))
             index += 1
 
     from IPython import embed
