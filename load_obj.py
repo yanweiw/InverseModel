@@ -1,4 +1,5 @@
 import time
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import airobot as ar
@@ -59,6 +60,13 @@ def main():
         focus_pt = [0.7, 0, 1.]
         robot.cam.setup_camera(focus_pt=focus_pt, dist=0.5, yaw=90, pitch=-60, roll=0)
         rgb, depth = robot.cam.get_images(get_rgb=True, get_depth=True)
+        # crop the rgb
+        img = rgb[50:350, 0:640]
+        # low pass filter : Gaussian blur
+        # blurred_img = cv2.GaussianBlur(img.astype('float32'), (5, 5), 0)
+        small_img = cv2.resize(img.astype('float32'), dsize=(200, 100),
+                    interpolation=cv2.INTER_CUBIC) # numpy array dtype numpy int64 by default
+        return small_img
 
     # test run
     def test():
@@ -69,24 +77,24 @@ def main():
         time.sleep(time_to_sleep)
         get_img()
         # test boundary
-        # robot.arm.set_ee_pose([pose[0][0], pose[0][1]+table_length/2.0, min_height], origin[1])
-        # # robot.arm.eetool.close()
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # robot.arm.move_ee_xyz([0, -table_length, 0])
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # pose = robot.arm.get_ee_pose()
-        # robot.arm.set_ee_pose([pose[0][0], pose[0][1], rest_height], origin[1])
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # robot.arm.move_ee_xyz([0, table_length, 0])
-        # time.sleep(time_to_sleep)
-        # get_img()
-        # pose = robot.arm.get_ee_pose()
-        # robot.arm.set_ee_pose([pose[0][0], pose[0][1], min_height], origin[1])
-        # time.sleep(time_to_sleep)
-        # get_img()
+        robot.arm.set_ee_pose([pose[0][0], pose[0][1]+table_length/2.0, min_height], origin[1])
+        # robot.arm.eetool.close()
+        time.sleep(time_to_sleep)
+        get_img()
+        robot.arm.move_ee_xyz([0, -table_length, 0])
+        time.sleep(time_to_sleep)
+        get_img()
+        pose = robot.arm.get_ee_pose()
+        robot.arm.set_ee_pose([pose[0][0], pose[0][1], rest_height], origin[1])
+        time.sleep(time_to_sleep)
+        get_img()
+        robot.arm.move_ee_xyz([0, table_length, 0])
+        time.sleep(time_to_sleep)
+        get_img()
+        pose = robot.arm.get_ee_pose()
+        robot.arm.set_ee_pose([pose[0][0], pose[0][1], min_height], origin[1])
+        time.sleep(time_to_sleep)
+        get_img()
         # test arc
         for i in list([np.pi/3.0, np.pi*2/5.0, np.pi*3/7.0, np.pi/2.0,
                        np.pi*4/7.0, np.pi*3/5.0, np.pi*2/3.0]):
@@ -121,7 +129,8 @@ def main():
     # plt.show()
 
     def poke():
-        get_img()
+        index = 0
+        curr_img = get_img()
         while True:
             obj_pos, obj_quat, _, _ = get_body_state(box_id)
             obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
@@ -148,13 +157,14 @@ def main():
                     and end_y > workspace_min_y and end_y < workspace_max_y:
                     break
             robot.arm.set_ee_pose([start_x, start_y, rest_height], origin[1])
-            # get_img()
-            # time.sleep(0.5)
             robot.arm.move_ee_xyz([0, 0, min_height-rest_height])
             robot.arm.move_ee_xyz([end_x-start_x, end_y-start_y, 0])
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height])
-            get_img()
-
+            next_img = get_img()
+            cv2.imwrite('images/' + str(index) +'.png',
+                        cv2.cvtColor(curr_img, cv2.COLOR_RGB2BGR))
+            curr_img = next_img
+            index += 1
 
     from IPython import embed
     embed()
