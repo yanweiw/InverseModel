@@ -167,9 +167,7 @@ def main():
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
             next_img = get_img()
             with open(save_dir + '.txt', 'a') as file:
-                file.write('%d %f %f %f %f %f %f %f %f %f %f \
-                            %f %f %f %f %f %f \
-                            %f %f %f %f %f %f \n' % \
+                file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
                     (index, start_x, start_y, end_x, end_y, obj_x, obj_y,
                     obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3],
                     js1, js2, js3, js4, js5, js6, je1, je2, je3, je4, je5, je6))
