@@ -135,11 +135,13 @@ def main():
             obj_pos, obj_quat, _, _ = get_body_state(box_id)
             obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
             obj_x, obj_y, obj_z = obj_pos
+            jpos1, jpos2, jpos3, jpos4, jpos5, jpos6 = robot.arm.get_jpos()
             if obj_z < 0.5: # cube fall on the ground
                 reset_body(box_id, box_pos)
                 obj_pos, obj_quat, _, _ = get_body_state(box_id)
                 obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
                 obj_x, obj_y, obj_z = obj_pos
+                jpos1, jpos2, jpos3, jpos4, jpos5, jpos6 = robot.arm.get_jpos()
             while True:
                 # choose random poke point on the object
                 poke_x = np.random.random()*box_size + obj_x - box_size/2.0
@@ -162,9 +164,10 @@ def main():
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height])
             next_img = get_img()
             with open('x_y_pos.txt', 'a') as file:
-                file.write('%d %f %f %f %f %f %f %f %f %f %f\n' % \
+                file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
                     (index, start_x, start_y, end_x, end_y,
-                    obj_x, obj_y, obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3]))
+                    obj_x, obj_y, obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3],
+                    jpos1, jpos2, jpos3, jpos4, jpos5, jpos6))
             cv2.imwrite('images/' + str(index) +'.png',
                         cv2.cvtColor(curr_img, cv2.COLOR_RGB2BGR))
             curr_img = next_img
