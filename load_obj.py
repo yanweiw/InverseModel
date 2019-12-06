@@ -138,7 +138,8 @@ def main():
             obj_x, obj_y, obj_z = obj_pos
             jpos1, jpos2, jpos3, jpos4, jpos5, jpos6 = robot.arm.get_jpos()
             # check if cube is on table
-            if obj_z < box_z / 2.0 or lin_vel[0] != 0: # important that box is still
+            if obj_z < box_z / 2.0 or lin_vel[0] > 1e-3: # important that box is still
+                print(obj_z, lin_vel[0])
                 reset_body(box_id, box_pos)
                 continue
             while True:
@@ -148,7 +149,7 @@ def main():
                 # choose poke angle along the z axis
                 poke_ang = np.random.random() * np.pi * 2 - np.pi
                 # choose poke length
-                poke_len = np.random.random() * 0.05 + 0.05 # [0.06-0.1]
+                poke_len = np.random.random() * 0.04 + 0.06 # [0.06-0.1]
                 # calc starting poke location and ending poke loaction
                 start_x = poke_x - poke_len * np.cos(poke_ang)
                 start_y = poke_y - poke_len * np.sin(poke_ang)
