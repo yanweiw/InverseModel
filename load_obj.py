@@ -1,3 +1,4 @@
+import os
 import time
 import cv2
 import numpy as np
@@ -29,7 +30,6 @@ workspace_max_x = 0.8 - 0.05
 workspace_min_x = 0.4
 workspace_max_y = 0.4 - 0.1
 workspace_min_y = -0.4 + 0.1
-save_dir = 'image'
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
     np.set_printoptions(precision=3, suppress=True)
 
     # load robot
-    robot = Robot('ur5e', arm_cfg={'render': False, 'self_collision': True})
+    robot = Robot('ur5e', arm_cfg={'render': True, 'self_collision': True})
     robot.arm.go_home()
     origin = robot.arm.get_ee_pose()
     def go_home():
@@ -130,7 +130,9 @@ def main():
     # print('Minimum Depth (m): %f' % np.min(depth))
     # plt.show()
 
-    def poke():
+    def poke(save_dir='image'):
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
         index = 0
         curr_img = get_img()
         while True:
@@ -177,6 +179,29 @@ def main():
             if index % 1000 == 0:
                 ar.log_info('number of pokes: %sk' % str(index/1000))
             index += 1
+
+    def test_data(filename):
+        data = np.loadtxt(filename, unpack=True)
+        idx, stx, sty, edx, edy, obx, oby, qt1, qt2, qt3, qt4, js1, js2, js3, js4, js5, js6, je1, je2, je3, je4, je5, je6 = data
+        go_home()
+        reset_body(box_id, box_pos)
+        _ = get_img()
+        for i in range(5):
+            robot.arm.set_ee_pose([stx[i], sty[i], rest_height], origin[1])
+            robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
+            robot.arm.move_ee_xyz([edx[i]-stx[i], edy[i]-sty[i], 0], 0.015)
+            robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
+            _ = get_img()
+            start_jpos = robot.arm.compute_ik([stx[i], sty[i], min_height])
+            end_jpos = robot.arm.compute_ik([edx[i], edy[i], min_height])
+            print('start')
+            print(js1[i], js2[i], js3[i], js4[i], js5[i], js6[i])
+            print(start_jpos)
+            print('end')
+            print(je1[i], je2[i], je3[i], je4[i], je5[i], je6[i])
+            print(end_jpos)
+            time.sleep(1)
+
 
     from IPython import embed
     embed()
