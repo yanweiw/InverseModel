@@ -22,7 +22,8 @@ home = [0.3, 0, rest_height]
 table_x = 0.59 # task space x ~ (0.3, 0.9); y ~ (-0.5, 0.5)
 table_y = 0
 table_z = 0.60
-box_pos = [table_x, table_y, 1]
+box_z = 1.0
+box_pos = [table_x, table_y, box_z]
 box_size = 0.02
 workspace_max_x = 0.8 - 0.05
 workspace_min_x = 0.4
@@ -132,16 +133,14 @@ def main():
         index = 0
         curr_img = get_img()
         while True:
-            obj_pos, obj_quat, _, _ = get_body_state(box_id)
+            obj_pos, obj_quat, lin_vel, _ = get_body_state(box_id)
             obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
             obj_x, obj_y, obj_z = obj_pos
             jpos1, jpos2, jpos3, jpos4, jpos5, jpos6 = robot.arm.get_jpos()
-            if obj_z < 0.5: # cube fall on the ground
+            # check if cube is on table
+            if obj_z < box_z / 2.0 or lin_vel[0] != 0: # important that box is still
                 reset_body(box_id, box_pos)
-                obj_pos, obj_quat, _, _ = get_body_state(box_id)
-                obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
-                obj_x, obj_y, obj_z = obj_pos
-                jpos1, jpos2, jpos3, jpos4, jpos5, jpos6 = robot.arm.get_jpos()
+                continue
             while True:
                 # choose random poke point on the object
                 poke_x = np.random.random()*box_size + obj_x - box_size/2.0
@@ -149,7 +148,7 @@ def main():
                 # choose poke angle along the z axis
                 poke_ang = np.random.random() * np.pi * 2 - np.pi
                 # choose poke length
-                poke_len = np.random.random() * 0.05 + 0.05 # [0.05-0.15]
+                poke_len = np.random.random() * 0.05 + 0.05 # [0.06-0.1]
                 # calc starting poke location and ending poke loaction
                 start_x = poke_x - poke_len * np.cos(poke_ang)
                 start_y = poke_y - poke_len * np.sin(poke_ang)
@@ -159,9 +158,10 @@ def main():
                     and end_y > workspace_min_y and end_y < workspace_max_y:
                     break
             robot.arm.set_ee_pose([start_x, start_y, rest_height], origin[1])
-            robot.arm.move_ee_xyz([0, 0, min_height-rest_height])
-            robot.arm.move_ee_xyz([end_x-start_x, end_y-start_y, 0])
-            robot.arm.move_ee_xyz([0, 0, rest_height-min_height])
+            robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
+            robot.arm.move_ee_xyz([end_x-start_x, end_y-start_y, 0], 0.015)
+            # important that we use move_ee_xyz, as set_ee_pose can throw obj in motion
+            robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
             next_img = get_img()
             with open('x_y_pos.txt', 'a') as file:
                 file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
