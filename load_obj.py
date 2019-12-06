@@ -29,6 +29,7 @@ workspace_max_x = 0.8 - 0.05
 workspace_min_x = 0.4
 workspace_max_y = 0.4 - 0.1
 workspace_min_y = -0.4 + 0.1
+save_dir = 'image'
 
 
 def main():
@@ -38,7 +39,7 @@ def main():
     np.set_printoptions(precision=3, suppress=True)
 
     # load robot
-    robot = Robot('ur5e', arm_cfg={'render': True, 'self_collision': True})
+    robot = Robot('ur5e', arm_cfg={'render': False, 'self_collision': True})
     robot.arm.go_home()
     origin = robot.arm.get_ee_pose()
     def go_home():
@@ -136,7 +137,6 @@ def main():
             obj_pos, obj_quat, lin_vel, _ = get_body_state(box_id)
             obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
             obj_x, obj_y, obj_z = obj_pos
-            jpos1, jpos2, jpos3, jpos4, jpos5, jpos6 = robot.arm.get_jpos()
             # check if cube is on table
             if obj_z < box_z / 2.0 or lin_vel[0] > 1e-3: # important that box is still
                 print(obj_z, lin_vel[0])
@@ -160,16 +160,20 @@ def main():
                     break
             robot.arm.set_ee_pose([start_x, start_y, rest_height], origin[1])
             robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
+            js1, js2, js3, js4, js5, js6 = robot.arm.get_jpos()
             robot.arm.move_ee_xyz([end_x-start_x, end_y-start_y, 0], 0.015)
+            je1, je2, je3, je4, je5, je6 = robot.arm.get_jpos()
             # important that we use move_ee_xyz, as set_ee_pose can throw obj in motion
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
             next_img = get_img()
-            with open('x_y_pos.txt', 'a') as file:
-                file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
-                    (index, start_x, start_y, end_x, end_y,
-                    obj_x, obj_y, obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3],
-                    jpos1, jpos2, jpos3, jpos4, jpos5, jpos6))
-            cv2.imwrite('images/' + str(index) +'.png',
+            with open(save_dir + '.txt', 'a') as file:
+                file.write('%d %f %f %f %f %f %f %f %f %f %f \
+                            %f %f %f %f %f %f \
+                            %f %f %f %f %f %f \n' % \
+                    (index, start_x, start_y, end_x, end_y, obj_x, obj_y,
+                    obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3],
+                    js1, js2, js3, js4, js5, js6, je1, je2, je3, je4, je5, je6))
+            cv2.imwrite(save_dir + '/' + str(index) +'.png',
                         cv2.cvtColor(curr_img, cv2.COLOR_RGB2BGR))
             curr_img = next_img
             if index % 1000 == 0:
