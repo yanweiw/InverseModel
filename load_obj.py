@@ -19,7 +19,7 @@ table_scaling = 0.6
 arm_span = 0.9
 min_height = 1.0
 rest_height = 1.1
-home = [0.3, 0, rest_height]
+home = [0.6, 0, rest_height]
 table_x = 0.59 # task space x ~ (0.3, 0.9); y ~ (-0.5, 0.5)
 table_y = 0
 table_z = 0.60
@@ -167,6 +167,8 @@ def main():
             je1, je2, je3, je4, je5, je6 = robot.arm.get_jpos()
             # important that we use move_ee_xyz, as set_ee_pose can throw obj in motion
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
+            # move arm away from camera view
+            go_home()
             next_img = get_img()
             with open(save_dir + '.txt', 'a') as file:
                 file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
