@@ -160,7 +160,7 @@ def main():
                 if end_x > workspace_min_x and end_x < workspace_max_x \
                     and end_y > workspace_min_y and end_y < workspace_max_y:
                     break
-            robot.arm.set_ee_pose([start_x, start_y, rest_height], origin[1])
+            robot.arm.move_ee_xyz([start_x-home[0], start_y-home[1], 0], 0.015)
             robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
             js1, js2, js3, js4, js5, js6 = robot.arm.get_jpos()
             robot.arm.move_ee_xyz([end_x-start_x, end_y-start_y, 0], 0.015)
@@ -168,7 +168,7 @@ def main():
             # important that we use move_ee_xyz, as set_ee_pose can throw obj in motion
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
             # move arm away from camera view
-            go_home()
+            go_home() # important to have one set_ee_pose every loop to reset accu errors
             next_img = get_img()
             with open(save_dir + '.txt', 'a') as file:
                 file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
