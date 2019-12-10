@@ -3,3 +3,4 @@ images
 *.txt
 image*
 *ipynb*
+weights*

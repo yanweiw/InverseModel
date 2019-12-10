@@ -204,6 +204,34 @@ def main():
             print(end_jpos)
             time.sleep(1)
 
+    def eval_poke(ground_truth, img_idx, poke):
+        gt = ground_truth[img_idx:img_idx+2]
+        tgt_posi = gt[1, 5:8]
+        tgt_posi[-1] = min_height
+        tgt_quat = gt[1, 7:11]
+        init_posi = gt[0, 5:8]
+        init_posi[-1] = min_height
+        init_quat = gt[0, 7:11]
+        gt_poke = gt[0, 1:5]
+        go_home()
+        reset_body(box_id, tgt_posi, tgt_quat)
+        _ = get_img()
+        time.sleep(1)
+        reset_body(box_id, init_posi, init_quat)
+        robot.arm.move_ee_xyz([gt_poke[0]-home[0], gt_poke[1]-home[1], 0], 0.015)
+        robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
+        robot.arm.move_ee_xyz([gt_poke[2]-gt_poke[0], gt_poke[3]-gt_poke[1], 0], 0.015)
+        robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
+        go_home()
+        _ = get_img()
+        reset_body(box_id, init_posi, init_quat)
+        robot.arm.move_ee_xyz([poke[0]-home[0], poke[1]-home[1], 0], 0.015)
+        robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
+        robot.arm.move_ee_xyz([poke[2]-poke[0], poke[3]-poke[1], 0], 0.015)
+        robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
+        go_home()
+        _ = get_img()
+
 
     from IPython import embed
     embed()
