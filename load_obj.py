@@ -11,6 +11,8 @@ from airobot.utils.pb_util import load_urdf
 from airobot.utils.pb_util import load_geom
 from airobot.utils.pb_util import get_body_state
 from airobot.utils.pb_util import reset_body
+import pybullet as p
+from airobot.utils.pb_util import remove_body
 
 # under scale factor
 table_length = 1.0
@@ -214,23 +216,42 @@ def main():
         init_quat = gt[0, 7:11]
         gt_poke = gt[0, 1:5]
         go_home()
-        reset_body(box_id, tgt_posi, tgt_quat)
-        _ = get_img()
-        time.sleep(1)
         reset_body(box_id, init_posi, init_quat)
-        robot.arm.move_ee_xyz([gt_poke[0]-home[0], gt_poke[1]-home[1], 0], 0.015)
-        robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
-        robot.arm.move_ee_xyz([gt_poke[2]-gt_poke[0], gt_poke[3]-gt_poke[1], 0], 0.015)
-        robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
-        go_home()
+
+        box_id2 = load_geom('box', size=box_size, mass=1,
+            base_pos=tgt_posi, base_ori=tgt_quat, rgba=[0,0,1,0.5])
+        p.setCollisionFilterPair(box_id, box_id2, -1, -1, enableCollision=0)
+        # p.setCollisionFilterPair(22, 12, -1, -1, enableCollision=0)
         _ = get_img()
-        reset_body(box_id, init_posi, init_quat)
+        # time.sleep(1)
+        # reset_body(box_id, init_posi, init_quat)
+        # robot.arm.move_ee_xyz([gt_poke[0]-home[0], gt_poke[1]-home[1], 0], 0.015)
+        # robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
+        # robot.arm.move_ee_xyz([gt_poke[2]-gt_poke[0], gt_poke[3]-gt_poke[1], 0], 0.015)
+        # robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
+        # go_home()
+        # _ = get_img()
+        # reset_body(box_id, init_posi, init_quat)
         robot.arm.move_ee_xyz([poke[0]-home[0], poke[1]-home[1], 0], 0.015)
         robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
         robot.arm.move_ee_xyz([poke[2]-poke[0], poke[3]-poke[1], 0], 0.015)
         robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
         go_home()
         _ = get_img()
+        curr_posi, _, _, _ = get_body_state(box_id)
+        dist = np.sqrt((tgt_posi[0]-curr_posi[0])**2 + (tgt_posi[1]-curr_posi[1])**2)
+        print(dist)
+        # time.sleep(0.5)
+        remove_body(box_id2)
+        return dist
+
+    def calc_dist(gtfile, pdfile):
+        true = np.loadtxt(gtfile)
+        pred = np.loadtxt(pdfile)
+        accu_dist = 0.0
+        for i in range(50):
+            accu_dist += eval_poke(true, int(pred[i][0]), pred[i][1:5])
+        return accu_dist / 50.0
 
 
     from IPython import embed

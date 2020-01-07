@@ -59,88 +59,86 @@ class PokeDataset(Dataset):
             img2_name = os.path.join(self.dirname, str(int(self.data[idx, 0])+1)) + '.png'
             poke = np.float32(self.data[idx, stx:edy+1])
 
+        poke = np.array(poke)
         img1 = imread(img1_name)
         img2 = imread(img2_name)
-
-#         imgx = img1.shape[0]
-#         imgy = img1.shape[1]
-#         coordconv1 = np.array([list(range(imgy)),] * imgx).reshape(imgx, imgy, -1).astype('float32')
-#         coordconv2 = np.array([list(range(imgx)),] * imgy).T.reshape(imgx, imgy, -1).astype('float32')
-#         img1 = np.concatenate([img1, coordconv1, coordconv2], axis=2)
-#         img2 = np.concatenate([img2, coordconv1, coordconv2], axis=2)
+        img = np.vstack([img1, img2])
 
         if self.transform:
-            img1 = self.transform(img1)
-            img2 = self.transform(img2)
+#             img1 = self.transform(img1)
+#             img2 = self.transform(img2)
+            img = self.transform(img)
 
 #         sample = {'img1': img1, 'img2': img2, 'poke': poke}
 #         img = np.vstack((img1, img2))
 #         pokevec = np.array([poke[2]-poke[0], poke[3]-poke[1]])
-
-        sample = {'img': torch.stack((img1, img2)), 'poke':torch.from_numpy(poke)}
-
+        sample = {'img': img,
+                  'poke': poke}
 
         return sample
 
 
-class Identity(nn.Module):
-    def __init__(self):
-        super(Identity, self).__init__()
-
-    def forward(self, x):
-        return x
-
-
-class Siamese(nn.Module):
-    def __init__(self, use_init):
-        super(Siamese, self).__init__()
-        self.base = models.resnet18(pretrained=use_init)
-#         self.base.conv1 = nn.Conv2d(5, 64, kernel_size=(7,7), stride=(2,2), padding=(3,3), bias=False)
-        self.base.fc = Identity()
-        self.fc = nn.Sequential(nn.Linear(in_features=2*512, out_features=4))
-
-    def forward(self, x):
-        '''x of size (batch, 2, C, H, W)'''
-#         feat_1, feat_2 = torch.split(x, 1, 1)
-#         feat_1, feat_2 = torch.squeeze(feat_1, 1), torch.squeeze(feat_2, 1)
-#         feat_1 = self.base(feat_1)
-#         feat_2 = self.base(feat_2)
-
+# class Identity(nn.Module):
+#     def __init__(self):
+#         super(Identity, self).__init__()
+#
+#     def forward(self, x):
+#         return x
+#
+#
+# class Siamese(nn.Module):
+#     def __init__(self, use_init):
+#         super(Siamese, self).__init__()
+#         self.base = models.resnet18(pretrained=use_init)
+# #         self.base.conv1 = nn.Conv2d(5, 64, kernel_size=(7,7), stride=(2,2), padding=(3,3), bias=False)
+#         self.base.fc = Identity()
+#         self.fc = nn.Sequential(nn.Linear(in_features=2*512, out_features=4))
+#
+#     def forward(self, x):
+#         '''x of size (batch, 2, C, H, W)'''
+# #         feat_1, feat_2 = torch.split(x, 1, 1)
+# #         feat_1, feat_2 = torch.squeeze(feat_1, 1), torch.squeeze(feat_2, 1)
+# #         feat_1 = self.base(feat_1)
+# #         feat_2 = self.base(feat_2)
+#
+# #         feat = torch.cat([feat_1, feat_2], 1)
+#         x = x.reshape((-1, x.size(2), x.size(3), x.size(4)))
+#         stacked_feat = self.base(x)
+#         feat_1, feat_2 = stacked_feat[:x.size(0)//2], stacked_feat[x.size(0)//2:]
 #         feat = torch.cat([feat_1, feat_2], 1)
-        x = x.reshape((-1, x.size(2), x.size(3), x.size(4)))
-        stacked_feat = self.base(x)
-        feat_1, feat_2 = stacked_feat[:x.size(0)//2], stacked_feat[x.size(0)//2:]
-        feat = torch.cat([feat_1, feat_2], 1)
-        out = self.fc(feat)
-        return out
+#         out = self.fc(feat)
+#         return out
 
 
-def train(use_4_gpus=False, lr=0.1, bsize=256, nwork=16, num_epochs=30, use_init=True):
+def train(use_4_gpus=True, lr=0.1, bsize=512, nwork=16, num_epochs=30):
     # model
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    model = Siamese(use_init=use_init)
+    # model = Siamese(use_init=use_init)
+    model = models.resnet18(pretrained=True)
+    model.fc = nn.Linear(512, 4)
     if use_4_gpus:
         if torch.cuda.device_count() > 1:
             print('Use', torch.cuda.device_count(), "GPUs")
+            model = model.float().cuda()
             model = nn.DataParallel(model)
-    model = model.to(device)
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-    criterion = nn.MSELoss()
+    else:
+        model = model.to(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    # criterion = nn.MSELoss()
+    criterion = nn.SmoothL1Loss()
 
     # data folders
-    train_dirs = ['image_21', 'image_22','image_23', 'image_24', 'image_25', 'image_26']#,
+    train_dirs = ['image_21', 'image_22']#,'image_23', 'image_24', 'image_25', 'image_26']#,
     #               'image_27', 'image_30', 'image_31', 'image_32']
     valid_dirs = ['image_20', 'image_28', 'image_38']
     data_dirs = {'train': train_dirs, 'val': valid_dirs}
     train_num_per_dir = 5000
-    valid_num_per_dir = 1000
+    valid_num_per_dir = 500
 
     # dataloading
-    if use_init:
-        data_transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])])
-    else:
-        data_transforms = transforms.ToTensor()
+    data_transforms = transforms.Compose([transforms.ToTensor(),
+                                          transforms.Normalize(mean=[0.5, 0.5, 0.5],
+                                                               std=[0.5, 0.5, 0.5])])
     train_loaders = {}
     valid_loaders = {}
 
@@ -183,23 +181,40 @@ def train(use_4_gpus=False, lr=0.1, bsize=256, nwork=16, num_epochs=30, use_init
                     running_losses[phase][data_dir] = 0.0
 
             # iterate over data
+
             for data_dir in data_dirs[phase]:
-                for batched_sample in dataloaders[phase][data_dir]:
+                for batch_iter, batched_sample in enumerate(dataloaders[phase][data_dir]):
                     inputs = batched_sample['img']
                     labels = batched_sample['poke']
-                    inputs = inputs.to(device)
-                    labels = labels.to(device)
-    #                 print(inputs.min(), inputs.max(), inputs.size())
-    #                 print(labels.size(), labels.min(), labels.max())
-    #                 assert False
+                    inputs = inputs.cuda()
+                    labels = labels.cuda()
+
+                    """
+                    im_a, im_b = inputs[0, 0], inputs[0, 1]
+                    im_a = (im_a.permute(1, 2, 0) + 1.0) / 2.0
+                    im_b = (im_b.permute(1, 2, 0) + 1.0) / 2.0
+                    im_a, im_b = im_a.cpu().numpy(), im_b.cpu().numpy()
+                    plt.figure()
+                    plt.imshow(im_a)
+                    plt.figure()
+                    plt.imshow(im_b)
+                    print(labels[0])
+                    assert False
+                    """
+
+                    #print(inputs.min(), inputs.max(), inputs.size())
+                    #print(labels.size(), labels.min(), labels.max())
+                    #assert False
                     # zero parameter gradients
                     optimizer.zero_grad()
 
                     # forward pass
                     with torch.set_grad_enabled(phase == 'train'):
                         outputs = model(inputs)
-
-    #                     loss = torch.abs(outputs - labels).mean()
+                        # if batch_iter % 50 == 0:
+                            # print('gt: {}'.format(labels[0]))
+                            # print('pr: {}'.format(outputs[0]))
+                        # loss = torch.abs(outputs - labels).mean()
                         loss = criterion(outputs, labels)
     #                     print(phase, loss.item())
 
@@ -242,27 +257,36 @@ def train(use_4_gpus=False, lr=0.1, bsize=256, nwork=16, num_epochs=30, use_init
         print()
 
     # save best model weights
-    torch.save(best_model_wts, 'weights/tmp.pth.tar')
+    return valid_loss_history, train_loss_history
+    # torch.save(best_model_wts, 'weights/')
+    # torch.save(best_model_wts, 'weights/10k_pos_512bsize.pth.tar')
 
+def plot_loss():
+    vl1 = valid_loss_history[6::3]
+    vl2 = valid_loss_history[7::3]
+    vl3 = valid_loss_history[8::3]
+    plot_list = [vl1, vl2, vl3]
+    plt.plot(list(map(list, zip(*plot_list))))
+    plt.plot(train_loss_history[0:])
 
 def record_loss(filename):
     with open(filename, 'a') as f:
-    f.write('image_20 ')
-    for item in vl1:
-        f.write('%s ' % item)
-        f.write('\n')
-    f.write('image_28 ')
-    for item in vl2:
-        f.write('%s' % item)
-        f.write('\n')
-    f.write('image_38 ')
-    for item in vl3:
-        f.write('%s' % item)
-        f.write('\n')
-    f.write('training ')
-    for item in train_loss_history:
-        f.write('%s' % item)
-        f.write('\n')
+        f.write('image_20 ')
+        for item in vl1:
+            f.write('%s ' % item)
+            f.write('\n')
+        f.write('image_28 ')
+        for item in vl2:
+            f.write('%s' % item)
+            f.write('\n')
+        f.write('image_38 ')
+        for item in vl3:
+            f.write('%s' % item)
+            f.write('\n')
+        f.write('training ')
+        for item in train_loss_history:
+            f.write('%s' % item)
+            f.write('\n')
 
 def make_pred(datafolder, savepath):
     import random
@@ -289,6 +313,6 @@ def make_pred(datafolder, savepath):
     np.savetxt(savepath, pokes)
 
 
-from IPython import embed()
+from IPython import embed
 
 embed()
