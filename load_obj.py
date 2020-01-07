@@ -19,15 +19,15 @@ table_length = 1.0
 table_wideth = 0.6 # but effective arm reach is 0.9
 table_scaling = 0.6
 arm_span = 0.9
-min_height = 1.0
+min_height = 1.0 + 0.02
 rest_height = 1.1
 home = [0.6, 0, rest_height]
-table_x = 0.59 # task space x ~ (0.3, 0.9); y ~ (-0.5, 0.5)
+table_x = 0.59 # task space x ~ (0.4, 0.75); y ~ (-0.3, 0.3)
 table_y = 0
 table_z = 0.60
 box_z = 1.0
 box_pos = [table_x, table_y, box_z]
-box_size = 0.02
+box_size = 0.04
 workspace_max_x = 0.8 - 0.05
 workspace_min_x = 0.4
 workspace_max_y = 0.4 - 0.1
@@ -153,7 +153,7 @@ def main():
                 # choose poke angle along the z axis
                 poke_ang = np.random.random() * np.pi * 2 - np.pi
                 # choose poke length
-                poke_len = np.random.random() * 0.04 + 0.06 # [0.06-0.1]
+                poke_len = np.random.random() * 0.015 + 0.085 # [0.085-0.1]
                 # calc starting poke location and ending poke loaction
                 start_x = poke_x - poke_len * np.cos(poke_ang)
                 start_y = poke_y - poke_len * np.sin(poke_ang)
