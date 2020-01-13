@@ -1,4 +1,5 @@
 import os
+import argparse
 import time
 import cv2
 import numpy as np
@@ -19,7 +20,7 @@ table_length = 1.0
 table_wideth = 0.6 # but effective arm reach is 0.9
 table_scaling = 0.6
 arm_span = 0.9
-min_height = 1.0 + 0.02
+min_height = 1.0 #+ 0.02
 rest_height = 1.1
 home = [0.6, 0, rest_height]
 table_x = 0.59 # task space x ~ (0.4, 0.75); y ~ (-0.3, 0.3)
@@ -27,21 +28,23 @@ table_y = 0
 table_z = 0.60
 box_z = 1.0
 box_pos = [table_x, table_y, box_z]
-box_size = 0.04
+box_size = 0.02
 workspace_max_x = 0.8 - 0.05
 workspace_min_x = 0.4
 workspace_max_y = 0.4 - 0.1
 workspace_min_y = -0.4 + 0.1
+poke_len_mean=0.06 # poke_len by default [0.06-0.1]
+poke_len_std=0.04
 
 
-def main():
+def main(ifRender=False):
     """
-    this function loads initial oboject on a table
+    this function loads initial oboject on a table,
     """
     np.set_printoptions(precision=3, suppress=True)
 
     # load robot
-    robot = Robot('ur5e', arm_cfg={'render': True, 'self_collision': True})
+    robot = Robot('ur5e', arm_cfg={'render': ifRender, 'self_collision': True})
     robot.arm.go_home()
     origin = robot.arm.get_ee_pose()
     def go_home():
@@ -153,7 +156,7 @@ def main():
                 # choose poke angle along the z axis
                 poke_ang = np.random.random() * np.pi * 2 - np.pi
                 # choose poke length
-                poke_len = np.random.random() * 0.015 + 0.085 # [0.085-0.1]
+                poke_len = np.random.random() * poke_len_std + poke_len_mean
                 # calc starting poke location and ending poke loaction
                 start_x = poke_x - poke_len * np.cos(poke_ang)
                 start_y = poke_y - poke_len * np.sin(poke_ang)
@@ -207,6 +210,9 @@ def main():
             time.sleep(1)
 
     def eval_poke(ground_truth, img_idx, poke):
+        # ground_truth is the entire matrix from 'image_xx.txt' file
+        # img_idx is image index, first column of ground_truth
+        # poke is the predicted 4 vector
         gt = ground_truth[img_idx:img_idx+2]
         tgt_posi = gt[1, 5:8]
         tgt_posi[-1] = min_height
@@ -246,6 +252,7 @@ def main():
         return dist
 
     def calc_dist(gtfile, pdfile):
+        # this function generate 50 visualization sequence
         true = np.loadtxt(gtfile)
         pred = np.loadtxt(pdfile)
         accu_dist = 0.0
@@ -260,4 +267,8 @@ def main():
     # time.sleep(10)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    # omit argument to produce no rendering
+    parser.add_argument('--render', type=bool, help='if rendering')
+    args = parser.parse_args()
+    main(ifRender=args.render)
