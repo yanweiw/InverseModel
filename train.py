@@ -12,12 +12,11 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils, models
 
 # Ignore warnings
-import warnings
-warnings.filterwarnings("ignore")
+# import warnings
+# warnings.filterwarnings("ignore")
 
-plt.ion()   # interactive mode
-np.set_printoptions(precision=3, suppress=True)
-torch.set_printoptions(precision=3, sci_mode=False)
+# np.set_printoptions(precision=3, suppress=True)
+# torch.set_printoptions(precision=3, sci_mode=False)
 
 # label index in the poke data array (23, 1)
 #index 0 is the poke index corresponding to starting image
@@ -65,57 +64,20 @@ class PokeDataset(Dataset):
         img = np.vstack([img1, img2])
 
         if self.transform:
-#             img1 = self.transform(img1)
-#             img2 = self.transform(img2)
             img = self.transform(img)
 
-#         sample = {'img1': img1, 'img2': img2, 'poke': poke}
-#         img = np.vstack((img1, img2))
-#         pokevec = np.array([poke[2]-poke[0], poke[3]-poke[1]])
         sample = {'img': img,
                   'poke': poke}
-
         return sample
 
 
-# class Identity(nn.Module):
-#     def __init__(self):
-#         super(Identity, self).__init__()
-#
-#     def forward(self, x):
-#         return x
-#
-#
-# class Siamese(nn.Module):
-#     def __init__(self, use_init):
-#         super(Siamese, self).__init__()
-#         self.base = models.resnet18(pretrained=use_init)
-# #         self.base.conv1 = nn.Conv2d(5, 64, kernel_size=(7,7), stride=(2,2), padding=(3,3), bias=False)
-#         self.base.fc = Identity()
-#         self.fc = nn.Sequential(nn.Linear(in_features=2*512, out_features=4))
-#
-#     def forward(self, x):
-#         '''x of size (batch, 2, C, H, W)'''
-# #         feat_1, feat_2 = torch.split(x, 1, 1)
-# #         feat_1, feat_2 = torch.squeeze(feat_1, 1), torch.squeeze(feat_2, 1)
-# #         feat_1 = self.base(feat_1)
-# #         feat_2 = self.base(feat_2)
-#
-# #         feat = torch.cat([feat_1, feat_2], 1)
-#         x = x.reshape((-1, x.size(2), x.size(3), x.size(4)))
-#         stacked_feat = self.base(x)
-#         feat_1, feat_2 = stacked_feat[:x.size(0)//2], stacked_feat[x.size(0)//2:]
-#         feat = torch.cat([feat_1, feat_2], 1)
-#         out = self.fc(feat)
-#         return out
-
-
-def train(use_4_gpus=True, lr=0.1, bsize=512, nwork=16, num_epochs=30):
+def train(train_num=5000, valid_num=500, use_4_gpus=True, lr=1e-1, bsize=512, nwork=16, num_epochs=30):
     # model
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     # model = Siamese(use_init=use_init)
     model = models.resnet18(pretrained=True)
     model.fc = nn.Linear(512, 4)
+
     if use_4_gpus:
         if torch.cuda.device_count() > 1:
             print('Use', torch.cuda.device_count(), "GPUs")
@@ -123,17 +85,19 @@ def train(use_4_gpus=True, lr=0.1, bsize=512, nwork=16, num_epochs=30):
             model = nn.DataParallel(model)
     else:
         model = model.to(device)
+
     optimizer = optim.Adam(model.parameters(), lr=lr)
     # criterion = nn.MSELoss()
-    criterion = nn.SmoothL1Loss()
+    # criterion = nn.SmoothL1Loss()
 
     # data folders
-    train_dirs = ['image_21', 'image_22']#,'image_23', 'image_24', 'image_25', 'image_26']#,
-    #               'image_27', 'image_30', 'image_31', 'image_32']
-    valid_dirs = ['image_20', 'image_28', 'image_38']
+    train_dirs = ['data/image_21', 'data/image_22','data/image_23', 'data/image_24',
+                  'data/image_25', 'data/image_26','data/image_27', 'data/image_30',
+                  'data/image_31', 'data/image_32']
+    valid_dirs = ['data/image_20', 'data/image_28', 'data/image_38']
     data_dirs = {'train': train_dirs, 'val': valid_dirs}
-    train_num_per_dir = 5000
-    valid_num_per_dir = 500
+    train_num_per_dir = train_num #5000
+    valid_num_per_dir = valid_num #500
 
     # dataloading
     data_transforms = transforms.Compose([transforms.ToTensor(),
@@ -214,8 +178,8 @@ def train(use_4_gpus=True, lr=0.1, bsize=512, nwork=16, num_epochs=30):
                         # if batch_iter % 50 == 0:
                             # print('gt: {}'.format(labels[0]))
                             # print('pr: {}'.format(outputs[0]))
-                        # loss = torch.abs(outputs - labels).mean()
-                        loss = criterion(outputs, labels)
+                        loss = torch.abs(outputs - labels).mean()
+                        # loss = criterion(outputs, l0abels)
     #                     print(phase, loss.item())
 
                         if phase == 'train':
@@ -312,7 +276,41 @@ def make_pred(datafolder, savepath):
     pokes = np.hstack([np.array(query).reshape((-1, 1)), pred_pokes, true_pokes])
     np.savetxt(savepath, pokes)
 
+if __name__ == '__main__':
+    train(num_epochs=10)
 
-from IPython import embed
+# from IPython import embed
+#
+# embed()
 
-embed()
+
+# class Identity(nn.Module):
+#     def __init__(self):
+#         super(Identity, self).__init__()
+#
+#     def forward(self, x):
+#         return x
+#
+#
+# class Siamese(nn.Module):
+#     def __init__(self, use_init):
+#         super(Siamese, self).__init__()
+#         self.base = models.resnet18(pretrained=use_init)
+# #         self.base.conv1 = nn.Conv2d(5, 64, kernel_size=(7,7), stride=(2,2), padding=(3,3), bias=False)
+#         self.base.fc = Identity()
+#         self.fc = nn.Sequential(nn.Linear(in_features=2*512, out_features=4))
+#
+#     def forward(self, x):
+#         '''x of size (batch, 2, C, H, W)'''
+# #         feat_1, feat_2 = torch.split(x, 1, 1)
+# #         feat_1, feat_2 = torch.squeeze(feat_1, 1), torch.squeeze(feat_2, 1)
+# #         feat_1 = self.base(feat_1)
+# #         feat_2 = self.base(feat_2)
+#
+# #         feat = torch.cat([feat_1, feat_2], 1)
+#         x = x.reshape((-1, x.size(2), x.size(3), x.size(4)))
+#         stacked_feat = self.base(x)
+#         feat_1, feat_2 = stacked_feat[:x.size(0)//2], stacked_feat[x.size(0)//2:]
+#         feat = torch.cat([feat_1, feat_2], 1)
+#         out = self.fc(feat)
+#         return out
