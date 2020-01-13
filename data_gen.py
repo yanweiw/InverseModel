@@ -135,7 +135,7 @@ def main(ifRender=False):
     # print('Minimum Depth (m): %f' % np.min(depth))
     # plt.show()
 
-    def poke(save_dir='image'):
+    def poke(save_dir='data/image'):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         index = 0
