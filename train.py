@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.image import imread
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from torchvision import transforms, utils, models
-
+from torch.utils.tensorboard import SummaryWriter
 
 # Ignore warnings
 # import warnings
@@ -76,8 +76,6 @@ class PokeDataset(Dataset):
 
 model = models.resnet18(pretrained=False)
 model.fc = nn.Linear(512, 4)
-model = model.float().cuda()
-model = nn.DataParallel(model)
 
 train_dirs = ['data/image_21', 'data/image_22','data/image_23', 'data/image_24',
                   'data/image_25', 'data/image_26','data/image_27', 'data/image_30',
@@ -109,6 +107,20 @@ valid_sets = ConcatDataset(list_of_valid_sets)
 valid_loader = DataLoader(valid_sets, batch_size=bsize, shuffle=False, num_workers=nwork)
 dataloaders = {'train': train_loader, 'val': valid_loader}
 
+# write to tensorboard
+writer = SummaryWriter('runs/experiment')
+dataiter = iter(train_loader)
+images = dataiter.next()['img']
+img_grid = utils.make_grid(images)
+# from IPython import embed
+# embed()
+writer.add_image('pokes', img_grid)
+writer.add_graph(model, images)
+writer.close()
+
+# start to run experiments
+model = model.float().cuda()
+model = nn.DataParallel(model)
 optimizer = optim.Adam(model.parameters(), lr=1e-1)
 
 since = time.time()
@@ -180,8 +192,13 @@ for epoch in range(num_epochs):
             # statistics
             if phase == 'train':
                 running_losses[phase] += loss.item() * inputs.size(0)
+                writer.add_scalar('training_loss', running_losses[phase] / \
+                    ((batch_iter+1)*bsize), epoch*len(train_loader) + batch_iter)
+                    # len(train_loader) gives how many batches are there in a loader
             else:
                 running_losses[phase][data_dir] += loss.item()*inputs.size(0)
+                writer.add_scalar('valid_loss', running_losses[phase][data_dir] / \
+                    ((batch_iter+1)*bsize), epoch*len(valid_loader) + batch_iter)
 
 
 
