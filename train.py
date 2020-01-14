@@ -9,13 +9,13 @@ import torch.optim as optim
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.image import imread
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from torchvision import transforms, utils, models
 
 
 # Ignore warnings
-import warnings
-warnings.filterwarnings("ignore")
+# import warnings
+# warnings.filterwarnings("ignore")
 
 plt.ion()   # interactive mode
 np.set_printoptions(precision=3, suppress=True)
@@ -74,7 +74,7 @@ class PokeDataset(Dataset):
         return sample
 
 
-model = models.resnet18(pretrained=True)
+model = models.resnet18(pretrained=False)
 model.fc = nn.Linear(512, 4)
 model = model.float().cuda()
 model = nn.DataParallel(model)
@@ -82,10 +82,11 @@ model = nn.DataParallel(model)
 train_dirs = ['data/image_21', 'data/image_22','data/image_23', 'data/image_24',
                   'data/image_25', 'data/image_26','data/image_27', 'data/image_30',
                   'data/image_31', 'data/image_32']
-valid_dirs = ['data/image_20', 'data/image_28', 'data/image_38']
+
+valid_dirs = ['data/image_20']#, 'data/image_28', 'data/image_38']
 data_dirs = {'train': train_dirs, 'val': valid_dirs}
 train_num_per_dir = 5000
-valid_num_per_dir = 500
+valid_num_per_dir = 1500
 num_epochs=30
 bsize = 500 # batch size
 nwork = 8 # num of workers
@@ -93,20 +94,20 @@ nwork = 8 # num of workers
 data_transforms = transforms.Compose([transforms.ToTensor(),
                                       transforms.Normalize(mean=[0.5, 0.5, 0.5],
                                                            std=[0.5, 0.5, 0.5])])
-train_loaders = {}
-valid_loaders = {}
-
+list_of_train_sets = []
 for data_dir in train_dirs:
     pokeset = PokeDataset(data_dir, size=train_num_per_dir, transform=data_transforms)
-    loader = DataLoader(pokeset, batch_size=bsize, shuffle=True, num_workers=nwork)
-    train_loaders[data_dir] = loader
+    list_of_train_sets.append(pokeset)
+train_sets = ConcatDataset(list_of_train_sets)
+train_loader = DataLoader(train_sets, batch_size=bsize, shuffle=True, num_workers=nwork)
 
+list_of_valid_sets = []
 for data_dir in valid_dirs:
     pokeset = PokeDataset(data_dir, size=valid_num_per_dir, transform=data_transforms)
-    loader = DataLoader(pokeset, batch_size=bsize, shuffle=False, num_workers=nwork)
-    valid_loaders[data_dir] = loader
-
-dataloaders = {'train': train_loaders, 'val': valid_loaders}
+    list_of_valid_sets.append(pokeset)
+valid_sets = ConcatDataset(list_of_valid_sets)
+valid_loader = DataLoader(valid_sets, batch_size=bsize, shuffle=False, num_workers=nwork)
+dataloaders = {'train': train_loader, 'val': valid_loader}
 
 optimizer = optim.Adam(model.parameters(), lr=1e-1)
 
@@ -135,59 +136,57 @@ for epoch in range(num_epochs):
                 running_losses[phase][data_dir] = 0.0
 
         # iterate over data
+        for batch_iter, batched_sample in enumerate(dataloaders[phase]):
+            inputs = batched_sample['img']
+            labels = batched_sample['poke']
+            inputs = inputs.cuda()
+            labels = labels.cuda()
 
-        for data_dir in data_dirs[phase]:
-            for batch_iter, batched_sample in enumerate(dataloaders[phase][data_dir]):
-                inputs = batched_sample['img']
-                labels = batched_sample['poke']
-                inputs = inputs.cuda()
-                labels = labels.cuda()
+            """
+            im_a, im_b = inputs[0, 0], inputs[0, 1]
+            im_a = (im_a.permute(1, 2, 0) + 1.0) / 2.0
+            im_b = (im_b.permute(1, 2, 0) + 1.0) / 2.0
+            im_a, im_b = im_a.cpu().numpy(), im_b.cpu().numpy()
+            plt.figure()
+            plt.imshow(im_a)
+            plt.figure()
+            plt.imshow(im_b)
+            print(labels[0])
+            assert False
+            """
 
-                """
-                im_a, im_b = inputs[0, 0], inputs[0, 1]
-                im_a = (im_a.permute(1, 2, 0) + 1.0) / 2.0
-                im_b = (im_b.permute(1, 2, 0) + 1.0) / 2.0
-                im_a, im_b = im_a.cpu().numpy(), im_b.cpu().numpy()
-                plt.figure()
-                plt.imshow(im_a)
-                plt.figure()
-                plt.imshow(im_b)
-                print(labels[0])
-                assert False
-                """
+            #print(inputs.min(), inputs.max(), inputs.size())
+            #print(labels.size(), labels.min(), labels.max())
+            #assert False
+            # zero parameter gradients
+            optimizer.zero_grad()
 
-                #print(inputs.min(), inputs.max(), inputs.size())
-                #print(labels.size(), labels.min(), labels.max())
-                #assert False
-                # zero parameter gradients
-                optimizer.zero_grad()
-
-                # forward pass
-                with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
+            # forward pass
+            with torch.set_grad_enabled(phase == 'train'):
+                outputs = model(inputs)
 #                     if batch_iter % 50 == 0:
 #                         print('gt: {}'.format(labels[0]))
 #                         print('pr: {}'.format(outputs[0]))
-                    loss = torch.abs(outputs - labels).mean()
+                loss = torch.abs(outputs - labels).mean()
 #                     criterion = nn.SmoothL1Loss()
 #                     criterion = nn.MSELoss()
 #                     loss = criterion(outputs, labels)
 #                     print(phase, loss.item())
 
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
-
-                # statistics
                 if phase == 'train':
-                    running_losses[phase] += loss.item() * inputs.size(0)
-                else:
-                    running_losses[phase][data_dir] += loss.item()*inputs.size(0)
+                    loss.backward()
+                    optimizer.step()
+
+            # statistics
+            if phase == 'train':
+                running_losses[phase] += loss.item() * inputs.size(0)
+            else:
+                running_losses[phase][data_dir] += loss.item()*inputs.size(0)
 
 
 
     # print losses
-    total_val_loss = 0.0
+    total_val_loss = 0.0 # of all the validation sets
     for data_dir in valid_dirs:
         ave_val_loss = running_losses['val'][data_dir] / valid_num_per_dir
         total_val_loss += ave_val_loss
