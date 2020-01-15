@@ -6,3 +6,4 @@ image*
 weights*
 *.png
 runs
+eval

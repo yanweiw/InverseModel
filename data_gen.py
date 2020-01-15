@@ -44,7 +44,7 @@ def main(ifRender=False):
     np.set_printoptions(precision=3, suppress=True)
 
     # load robot
-    robot = Robot('ur5e', arm_cfg={'render': ifRender, 'self_collision': True})
+    robot = Robot('ur5e_2f140', arm_cfg={'render': ifRender, 'self_collision': True})
     robot.arm.go_home()
     origin = robot.arm.get_ee_pose()
     def go_home():
