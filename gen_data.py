@@ -71,11 +71,14 @@ def main(ifRender=False):
         rgb, depth = robot.cam.get_images(get_rgb=True, get_depth=True)
         # crop the rgb
         img = rgb[40:360, 0:640]
+        dep = depth[40:360, 0:640]
         # low pass filter : Gaussian blur
         # blurred_img = cv2.GaussianBlur(img.astype('float32'), (5, 5), 0)
         small_img = cv2.resize(img.astype('float32'), dsize=(200, 100),
                     interpolation=cv2.INTER_CUBIC) # numpy array dtype numpy int64 by default
-        return small_img
+        small_dep = cv2.resize(dep.astype('float32'), dsize=(200, 100),
+                    interpolation=cv2.INTER_CUBIC) # numpy array dtype numpy int64 by default
+        return small_img, small_dep
 
     # test run
     def test():
@@ -120,6 +123,19 @@ def main(ifRender=False):
             time.sleep(time_to_sleep)
             get_img()
 
+    def get_pixel(X, Y, Z=0.975):
+        """return fractional pixels representations
+           Z values comes from running robot.cam.get_pix.3dpt
+           representing the table surface height"""
+        ext_mat = robot.cam.get_cam_ext()
+        int_mat = robot.cam.get_cam_int()
+        XYZ = np.array([X, Y, Z, 1])
+        xyz = np.linalg.inv(ext_mat).dot(XYZ)[:3]
+        pixel_xyz = int_mat.dot(xyz)
+        pixel_xyz = pixel_xyz / pixel_xyz[2]
+        pixel_col = pixel_xyz[0] / 3.2 # due to image cropping and scaling
+        pixel_row = (pixel_xyz[1] - 40) / 3.2
+        return pixel_row, pixel_col
 
     # # log object
     # pos, quat, lin_vel, ang_vel = get_body_state(box_id)
@@ -140,8 +156,11 @@ def main(ifRender=False):
     def poke(save_dir='data/image'):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
+        save_depth_dir = save_dir + '_depth'
+        if not os.path.exists(save_depth_dir):
+            os.makedirs(save_depth_dir)
         index = 0
-        curr_img = get_img()
+        curr_img, curr_dep = get_img()
         while True:
             obj_pos, obj_quat, lin_vel, _ = get_body_state(box_id)
             obj_ang = quat2euler(obj_quat)[2] # -pi ~ pi
@@ -176,15 +195,22 @@ def main(ifRender=False):
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
             # move arm away from camera view
             go_home() # important to have one set_ee_pose every loop to reset accu errors
-            next_img = get_img()
+            next_img, next_dep = get_img()
+            # calc poke and obj locations in image pixel space
+            start_r, start_c = get_pixel(start_x, start_y)
+            end_r, end_c = get_pixel(end_x, end_y)
+            obj_r, obj_c = get_pixel(obj_x, obj_y)
             with open(save_dir + '.txt', 'a') as file:
-                file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
+                file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
                     (index, start_x, start_y, end_x, end_y, obj_x, obj_y,
                     obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3],
-                    js1, js2, js3, js4, js5, js6, je1, je2, je3, je4, je5, je6))
+                    js1, js2, js3, js4, js5, js6, je1, je2, je3, je4, je5, je6,
+                    start_r, start_c, end_r, end_c, obj_r, obj_c))
             cv2.imwrite(save_dir + '/' + str(index) +'.png',
                         cv2.cvtColor(curr_img, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(save_dir + '_depth/' + str(index) +'.png', curr_dep)
             curr_img = next_img
+            curr_dep = next_dep
             if index % 1000 == 0:
                 ar.log_info('number of pokes: %sk' % str(index/1000))
             index += 1
@@ -194,13 +220,13 @@ def main(ifRender=False):
         idx, stx, sty, edx, edy, obx, oby, qt1, qt2, qt3, qt4, js1, js2, js3, js4, js5, js6, je1, je2, je3, je4, je5, je6 = data
         go_home()
         reset_body(box_id, box_pos)
-        _ = get_img()
+        _, _ = get_img()
         for i in range(5):
             robot.arm.set_ee_pose([stx[i], sty[i], rest_height], origin[1])
             robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
             robot.arm.move_ee_xyz([edx[i]-stx[i], edy[i]-sty[i], 0], 0.015)
             robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
-            _ = get_img()
+            _, _ = get_img()
             start_jpos = robot.arm.compute_ik([stx[i], sty[i], min_height])
             end_jpos = robot.arm.compute_ik([edx[i], edy[i], min_height])
             print('start')
@@ -230,7 +256,7 @@ def main(ifRender=False):
             base_pos=tgt_posi, base_ori=tgt_quat, rgba=[0,0,1,0.5])
         p.setCollisionFilterPair(box_id, box_id2, -1, -1, enableCollision=0)
         # p.setCollisionFilterPair(22, 12, -1, -1, enableCollision=0)
-        _ = get_img()
+        _, _ = get_img()
         # time.sleep(1)
         # reset_body(box_id, init_posi, init_quat)
         # robot.arm.move_ee_xyz([gt_poke[0]-home[0], gt_poke[1]-home[1], 0], 0.015)
@@ -238,14 +264,14 @@ def main(ifRender=False):
         # robot.arm.move_ee_xyz([gt_poke[2]-gt_poke[0], gt_poke[3]-gt_poke[1], 0], 0.015)
         # robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
         # go_home()
-        # _ = get_img()
+        # _, _ = get_img()
         # reset_body(box_id, init_posi, init_quat)
         robot.arm.move_ee_xyz([poke[0]-home[0], poke[1]-home[1], 0], 0.015)
         robot.arm.move_ee_xyz([0, 0, min_height-rest_height], 0.015)
         robot.arm.move_ee_xyz([poke[2]-poke[0], poke[3]-poke[1], 0], 0.015)
         robot.arm.move_ee_xyz([0, 0, rest_height-min_height], 0.015)
         go_home()
-        _ = get_img()
+        _, _ = get_img()
         curr_posi, _, _, _ = get_body_state(box_id)
         dist = np.sqrt((tgt_posi[0]-curr_posi[0])**2 + (tgt_posi[1]-curr_posi[1])**2)
         print(dist)

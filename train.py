@@ -22,12 +22,13 @@ from torch.utils.tensorboard import SummaryWriter
 np.set_printoptions(precision=3, suppress=True)
 torch.set_printoptions(precision=3, sci_mode=False)
 
-# label index in the poke data array (23, 1)
-#index 0 is the poke index corresponding to starting image
+# label index in the poke data array (29, 1)
+# index 0 is the poke index corresponding to starting image
 stx, sty, edx, edy = 1, 2, 3, 4 # ee pos of start and end poke
 obx, oby, qt1, qt2, qt3, qt4 = 5, 6, 7, 8, 9, 10 # obj pose before poke
 js1, js2, js3, js4, js5, js6 = 11, 12, 13, 14, 15, 16 # jpos before poke
-je1, je2, je3, je4, je5, je6 = 17, 18, 19, 20, 21, 22 #jpos after poke
+je1, je2, je3, je4, je5, je6 = 17, 18, 19, 20, 21, 22 # jpos after poke
+str, stc, edr, edc, obr, obc = 23, 24, 25, 26, 27, 28 # row and col locations in image
 
 class PokeDataset(Dataset):
 

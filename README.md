@@ -35,3 +35,5 @@ Learning (normalize data to (-5, 5), mean: [ 0.001, -0.001, -0.001], std: [0.998
 
 image_20: 0.03995610861120316
 image_21: 0.02433286132548355 (training)
+
+image_50-59: data with new end-effector, 52, 55, 58 have some defects. 23k each. 
