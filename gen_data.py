@@ -20,8 +20,8 @@ table_length = 1.0
 table_wideth = 0.6 # but effective arm reach is 0.9
 table_scaling = 0.6
 arm_span = 0.9
-min_height = 1.0 #+ 0.02
-rest_height = 1.1
+min_height = 1.1 #+ 0.02
+rest_height = 1.2 # stick scale="0.0001 0.0001 0.0007"
 home = [0.6, 0, rest_height]
 table_x = 0.59 # task space x ~ (0.4, 0.75); y ~ (-0.3, 0.3)
 table_y = 0
@@ -43,13 +43,15 @@ def main(ifRender=False):
     """
     np.set_printoptions(precision=3, suppress=True)
 
+
     # load robot
-    robot = Robot('ur5e', arm_cfg={'render': ifRender, 'self_collision': True})
+    robot = Robot('ur5e', use_eetool=False, arm_cfg={'render': ifRender, 'self_collision': True})
     robot.arm.go_home()
     origin = robot.arm.get_ee_pose()
+
     def go_home():
         robot.arm.set_ee_pose(home, origin[1])
-        robot.arm.eetool.close()
+        # robot.arm.eetool.close()
     # init robot
     go_home()
 
