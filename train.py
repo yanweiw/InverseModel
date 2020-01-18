@@ -28,15 +28,17 @@ stx, sty, edx, edy = 1, 2, 3, 4 # ee pos of start and end poke
 obx, oby, qt1, qt2, qt3, qt4 = 5, 6, 7, 8, 9, 10 # obj pose before poke
 js1, js2, js3, js4, js5, js6 = 11, 12, 13, 14, 15, 16 # jpos before poke
 je1, je2, je3, je4, je5, je6 = 17, 18, 19, 20, 21, 22 # jpos after poke
-str, stc, edr, edc, obr, obc = 23, 24, 25, 26, 27, 28 # row and col locations in image
+sr, stc, edr, edc, obr, obc = 23, 24, 25, 26, 27, 28 # row and col locations in image
 
 class PokeDataset(Dataset):
 
-    def __init__(self, dirname, size=None, transform=None):
+    def __init__(self, dirname, start_label, end_label, size=None, transform=None):
         self.dirname = dirname
         self.data = np.loadtxt(dirname + '.txt')
         self.transform = transform
         self.size = size
+        self.start_label = start_label
+        self.end_label = end_label
 
     def __len__(self):
         if self.size: # in cases where I want to define size
@@ -58,10 +60,10 @@ class PokeDataset(Dataset):
         # fix the last idx using identity poke (i.e. zero poke)
         if idx == self.__len__()-1:
             img2_name = img1_name
-            poke = np.array([0.0, 0.0, 0.0, 0.0], dtype='float32')
+            poke = np.zeros((self.end_label-self.start_label+1,), dtype='float32')
         else:
             img2_name = os.path.join(self.dirname, str(int(self.data[idx, 0])+1)) + '.png'
-            poke = np.float32(self.data[idx, stx:edy+1])
+            poke = np.float32(self.data[idx, self.start_label:self.end_label+1])
 
         poke = np.array(poke)
         img1 = imread(img1_name)
@@ -77,12 +79,23 @@ class PokeDataset(Dataset):
 
 
 
-def run_experiment(seed, bsize, lr, num_epochs, nwork, train_num, valid_num, use_pretrained):
+def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
+                    train_num, valid_num, use_pretrained):
     # set seed
     # torch.manual_seed(seed)
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
     # np.random.seed(seed)
+
+    # decide training objective: predictions in world, joint, or pixel space
+    if experiment_tag == 'world':
+        start_label, end_label = stx, oby
+    elif experiment_tag == 'joint':
+        start_label, end_label = js1, je6
+    elif experiment_tag == 'pixel':
+        start_label, end_label = sr, obc
+    else:
+        raise Exception("experiment_tag has to be 'world', 'joint', or 'pixel'")
 
     # build model
     print()
@@ -91,14 +104,12 @@ def run_experiment(seed, bsize, lr, num_epochs, nwork, train_num, valid_num, use
     else:
         print('Not using pretrained weights')
     model = models.resnet18(pretrained=use_pretrained)
-    model.fc = nn.Linear(512, 4)
+    model.fc = nn.Linear(512, end_label-start_label+1)
 
     # specify data folders
-    train_dirs = ['data/image_21', 'data/image_22','data/image_23', 'data/image_24',
-                      'data/image_25', 'data/image_26','data/image_27', 'data/image_30',
-                      'data/image_31', 'data/image_32']
+    train_dirs = ['data/image_51', 'data/image_53','data/image_54', 'data/image_56', 'data/image_57']
 
-    valid_dirs = ['data/image_20']#, 'data/image_28', 'data/image_38']
+    valid_dirs = ['data/image_50']
     data_dirs = {'train': train_dirs, 'val': valid_dirs}
     train_num_per_dir = train_num
     valid_num_per_dir = valid_num
@@ -110,14 +121,14 @@ def run_experiment(seed, bsize, lr, num_epochs, nwork, train_num, valid_num, use
     # concatenate train sources into a single dataset
     list_of_train_sets = []
     for data_dir in train_dirs:
-        pokeset = PokeDataset(data_dir, size=train_num_per_dir, transform=data_transforms)
+        pokeset = PokeDataset(data_dir, start_label, end_label, size=train_num_per_dir, transform=data_transforms)
         list_of_train_sets.append(pokeset)
     train_sets = ConcatDataset(list_of_train_sets)
     train_loader = DataLoader(train_sets, batch_size=bsize, shuffle=True, num_workers=nwork)
     # valid sources
     list_of_valid_sets = []
     for data_dir in valid_dirs:
-        pokeset = PokeDataset(data_dir, size=valid_num_per_dir, transform=data_transforms)
+        pokeset = PokeDataset(data_dir, start_label, end_label, size=valid_num_per_dir, transform=data_transforms)
         list_of_valid_sets.append(pokeset)
     valid_sets = ConcatDataset(list_of_valid_sets)
     valid_loader = DataLoader(valid_sets, batch_size=bsize, shuffle=False, num_workers=nwork)
@@ -126,7 +137,7 @@ def run_experiment(seed, bsize, lr, num_epochs, nwork, train_num, valid_num, use
     # write to tensorboard images and model graphs
     writer = SummaryWriter('runs/run'+str(seed))
     dataiter = iter(train_loader)
-    images = dataiter.next()['img']
+    images = dataiter.next()['img'][:50]
     img_grid = utils.make_grid(images)
     writer.add_image('pokes', img_grid)
     writer.add_graph(model, images)
@@ -177,6 +188,8 @@ def run_experiment(seed, bsize, lr, num_epochs, nwork, train_num, valid_num, use
                     outputs = model(inputs)
                     # L1 loss
                     loss = torch.abs(outputs - labels).mean()
+                    # criterion = nn.SmoothL1Loss()
+                    # loss = criterion(outputs, labels)
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
@@ -232,6 +245,7 @@ def run_experiment(seed, bsize, lr, num_epochs, nwork, train_num, valid_num, use
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # omit argument to produce no rendering
+    parser.add_argument('--tag', required=True, help="experiment tag: 'world', 'joint', 'pixel'")
     parser.add_argument('--seed', type=int, required=True, help='random seed')
     parser.add_argument('--bsize', type=int, default=500, help='batch size')
     parser.add_argument('--lr', type=float, default=1e-1, help='learning rate')
@@ -241,6 +255,6 @@ if __name__ == '__main__':
     parser.add_argument('--valid_size', type=int, default=1500, help='num of data from each valid dir')
     parser.add_argument('--use_init', action='store_true', help='use pretrained weights')
     args = parser.parse_args()
-    run_experiment(seed=args.seed, bsize=args.bsize, lr=args.lr,
+    run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,
         num_epochs=args.epoch, nwork=args.nwork, train_num=args.train_size,
         valid_num=args.valid_size, use_pretrained=args.use_init)
