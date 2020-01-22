@@ -13,6 +13,7 @@ from matplotlib.image import imread
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from torchvision import transforms, utils, models
 from torch.utils.tensorboard import SummaryWriter
+from torch.optim.lr_scheduler import ReduceLROnPlateau as reduceLR
 
 # Ignore warnings
 # import warnings
@@ -147,33 +148,35 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     model = model.float().cuda()
     model = nn.DataParallel(model)
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
+    scheduler = reduceLR(optimizer, patience=2)
     # record time
     since = time.time()
     last_time = since
-    valid_loss_history = []
-    train_loss_history = []
     best_model_wts = copy.deepcopy(model.state_dict())
-    lowest_loss = 10 # some big number
+    lowest_loss = 1e10 # some big number
     running_losses = {}
     print()
     print('batch size ', bsize)
     print('learning rate', lr)
     print('train sets ', train_dirs)
-    print()
+    print('valid sets ', valid_dirs)
+    print('training num ', len(train_dirs) * train_num_per_dir)
+    print('validation num ', len(valid_dirs) * valid_num_per_dir)
+    print('')
 
     # running through epochs
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs-1))
         print('-' * 10)
+        for param_group in optimizer.param_groups:
+            print('learning rate: {:.0e}'.format(param_group['lr'])) # print curr learning rate
         for phase in ['train', 'val']:
+            running_losses[phase] = 0.0
             if phase == 'train':
                 model.train()
-                running_losses[phase] = 0.0
             else:
                 model.eval()
-                running_losses[phase] = {}
-                for data_dir in valid_dirs:
-                    running_losses[phase][data_dir] = 0.0
 
             # iterate over data
             for batch_iter, batched_sample in enumerate(dataloaders[phase]):
@@ -181,7 +184,6 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                 labels = batched_sample['poke']
                 inputs = inputs.cuda()
                 labels = labels.cuda()
-                # zero parameter gradients
                 optimizer.zero_grad()
                 # forward pass
                 with torch.set_grad_enabled(phase == 'train'):
@@ -195,32 +197,31 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                         optimizer.step()
 
                 # log statistics
+                running_losses[phase] += loss.item() * inputs.size(0)
                 if phase == 'train':
-                    running_losses[phase] += loss.item() * inputs.size(0)
                     if batch_iter % 10 == 0:
-                        writer.add_scalar('training_loss', running_losses[phase] / \
-                        ((batch_iter+1)*bsize), epoch*len(train_loader) + batch_iter)
-                        # len(train_loader) gives how many batches are there in a loader
+                        writer.add_scalar('training_loss', loss.item(),
+                            epoch*len(train_loader) + batch_iter)
+                            # len(train_loader) gives how many batches are there in a loader
                 else:
-                    running_losses[phase][data_dir] += loss.item()*inputs.size(0)
-                    writer.add_scalar('valid_loss', running_losses[phase][data_dir] / \
-                    ((batch_iter+1)*bsize), epoch*len(valid_loader) + batch_iter)
+                    writer.add_scalar('valid_loss', loss.item(),
+                        epoch*len(valid_loader) + batch_iter)
 
         # print training losses
-        epoch_loss = running_losses['train'] / (len(train_dirs)*train_num_per_dir)
-        train_loss_history.append(epoch_loss)
-        print('Training Loss: {:.4f}'.format(epoch_loss))
+        train_loss = running_losses['train'] / (len(train_dirs)*train_num_per_dir)
+        print('Training Loss: {:.4f}'.format(train_loss))
         # print validation losses
-        total_val_loss = 0.0 # of all the validation sets
-        for data_dir in valid_dirs:
-            ave_val_loss = running_losses['val'][data_dir] / valid_num_per_dir
-            total_val_loss += ave_val_loss
-            print('Val {}: {:.4f}'.format(data_dir, ave_val_loss))
-            valid_loss_history.append(ave_val_loss)
-        if total_val_loss < lowest_loss:
-            lowest_loss = total_val_loss
+        valid_loss = running_losses['val'] / (len(valid_dirs)*valid_num_per_dir)
+        print('Validation Loss: {:.4f}'.format(valid_loss))
+
+        # update learning rate with scheduler
+        scheduler.step(valid_loss)
+
+        # record weights
+        if valid_loss < lowest_loss:
+            lowest_loss = valid_loss
             best_model_wts = copy.deepcopy(model.state_dict())
-            print('updating best weights')
+            print('updating best weights...')
 
         # print running time
         curr_time = time.time()
@@ -234,7 +235,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
 
     # save best model weights
     print("saving model's learned parameters...")
-    save_path = 'weights/run' + str(seed) + '_bs' + str(bsize) \
+    save_path = 'weights/run' + str(seed) + '_' + experiment_tag + '_bs' + str(bsize) \
                 + '_lr' + str(lr) + '_ep' + str(num_epochs) +'.pth'
     torch.save(model.state_dict(), save_path)
     print("model saved to ", save_path)
@@ -251,8 +252,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-1, help='learning rate')
     parser.add_argument('--epoch', type=int, default=30, help='num of epochs')
     parser.add_argument('--nwork', type=int, default=8, help='num of workers')
-    parser.add_argument('--train_size', type=int, default=5000, help='num of data from each train dir')
-    parser.add_argument('--valid_size', type=int, default=1500, help='num of data from each valid dir')
+    parser.add_argument('--train_size', type=int, default=20000, help='num of data from each train dir')
+    parser.add_argument('--valid_size', type=int, default=1000, help='num of data from each valid dir')
     parser.add_argument('--use_init', action='store_true', help='use pretrained weights')
     args = parser.parse_args()
     run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,

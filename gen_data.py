@@ -255,7 +255,11 @@ def main(ifRender=False):
         box_id2 = load_geom('box', size=box_size, mass=1,
             base_pos=tgt_posi, base_ori=tgt_quat, rgba=[0,0,1,0.5])
         p.setCollisionFilterPair(box_id, box_id2, -1, -1, enableCollision=0)
-        # p.setCollisionFilterPair(22, 12, -1, -1, enableCollision=0)
+        # to check robot_id and link_id
+        # robot.arm.robot_id
+        # robot.arm.p.getNumJoints(robot_id)
+        # robot.arm.p.getJointInfo(robot_id, 0-max_lnik_id)
+        p.setCollisionFilterPair(box_id2, 1, -1, 11, enableCollision=0)
         _, _ = get_img()
         # time.sleep(1)
         # reset_body(box_id, init_posi, init_quat)
