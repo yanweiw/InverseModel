@@ -31,6 +31,11 @@ js1, js2, js3, js4, js5, js6 = 11, 12, 13, 14, 15, 16 # jpos before poke
 je1, je2, je3, je4, je5, je6 = 17, 18, 19, 20, 21, 22 # jpos after poke
 sr, stc, edr, edc, obr, obc = 23, 24, 25, 26, 27, 28 # row and col locations in image
 
+# default data transform
+default_transform = transforms.Compose([transforms.ToTensor(),
+                                      transforms.Normalize(mean=[0.5, 0.5, 0.5],
+                                                           std=[0.5, 0.5, 0.5])])
+
 class PokeDataset(Dataset):
 
     def __init__(self, dirname, start_label, end_label, size=None, transform=None):
@@ -115,9 +120,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     train_num_per_dir = train_num
     valid_num_per_dir = valid_num
     # data transform
-    data_transforms = transforms.Compose([transforms.ToTensor(),
-                                          transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                                                               std=[0.5, 0.5, 0.5])])
+    data_transforms = default_transform
     # build DataLoader
     # concatenate train sources into a single dataset
     list_of_train_sets = []
