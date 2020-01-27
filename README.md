@@ -36,4 +36,35 @@ Learning (normalize data to (-5, 5), mean: [ 0.001, -0.001, -0.001], std: [0.998
 image_20: 0.03995610861120316
 image_21: 0.02433286132548355 (training)
 
-image_50-59: data with new end-effector, 52, 55, 58 have some defects. 23k each. 
+image_50-59: data with new end-effector, 52, 55, 58 have some defects. 23k each.
+
+
+Learning with 100K; amortizing learning rate; comparing world coordinates predictions with pixel coordinates prediction
+
+image_49: (new depth image) 100 (test trials)
+
+world_116: 0.04543
+world_117: 0.04619
+world_118: 0.06644
+world_125: 0.04556
+world_126: 0.04447
+
+gt_world_116: 0.04485
+gt_world_117: 0.04453
+gt_world_118: 0.04489
+gt_world_125: 0.04541
+gt_world_126: 0.04458
+
+pixel_122: 0.04555
+pixel_123: 0.04611
+pixel_124: 0.04525
+pixel_129: 0.04438
+pixel_130: 0.04509
+
+gt_pixel_122: 0.04609
+gt_pixel_123: 0.04715
+gt_pixel_124: 0.04656
+gt_pixel_129: 0.04634
+gt_pixel_130: 0.04547
+
+
