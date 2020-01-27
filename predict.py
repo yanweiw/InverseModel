@@ -1,6 +1,6 @@
 from train import *
 
-def predict(data_num, model_path, experiment_tag, size, transform):
+def predict(data_num, model_path, experiment_tag, size, transform, random_init):
     data_dir = 'data/image_' + data_num
     # decide training objective: predictions in world, joint, or pixel space
     if experiment_tag == 'world':
@@ -19,9 +19,17 @@ def predict(data_num, model_path, experiment_tag, size, transform):
     true_pokes = []
     model = models.resnet18(pretrained=False)
     model.fc = nn.Linear(512, end_label-start_label+1)
+
     model = model.float().cuda()
     model = nn.DataParallel(model)
-    model.load_state_dict(torch.load(model_path))
+    if random_init:
+        print('using random weights...')
+        def weight_reset(m):
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                m.reset_parameters()
+        model.apply(weight_reset)
+    else:
+        model.load_state_dict(torch.load(model_path))
     model.eval()
 
     with torch.no_grad():
@@ -35,8 +43,11 @@ def predict(data_num, model_path, experiment_tag, size, transform):
     indices = np.array(range(size)).reshape(-1, 1)
     pokes = np.hstack([indices, pred_pokes, true_pokes])
     print('saving predictions...')
-    np.savetxt('eval/pred_' + data_num + '_' + experiment_tag + '_' + model_path[11:14]+ '.txt', pokes)
-    print('saved')
+    save_path = 'eval/pred_' + data_num + '_' + experiment_tag + '_' + model_path[11:14]+ '.txt'
+    if random_init:
+        save_path = save_path[:-4] + '_random.txt'
+    np.savetxt(save_path, pokes)
+    print('saved to ', save_path)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -44,5 +55,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', required=True, help='model path')
     parser.add_argument('--tag', required=True, help='experiment tag')
     parser.add_argument('--size', type=int, default=2000, help='test case num')
+    parser.add_argument('--random', action='store_true', help='use random weights')
     args = parser.parse_args()
-    predict(args.data, args.model, args.tag, args.size, default_transform)
+    predict(data_num=args.data, model_path=args.model, experiment_tag=args.tag,
+        size=args.size, transform=default_transform, random_init=args.random)
