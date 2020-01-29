@@ -68,3 +68,20 @@ gt_pixel_129: 0.04634
 gt_pixel_130: 0.04547
 
 
+image_70: 17k
+image_71: 2k
+image_72: 55k
+image_73: 15k
+image_74: 17k
+image_75: 8k
+image_76: 55k
+image_77: 55k
+image_78: 55k
+image_79: 46k
+
+
+poke_data.gif: replay from bad data
+replaypoke.gif: replay from good data
+stochastic_poke.gif: red block and blue block overlapping 
+
+

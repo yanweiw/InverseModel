@@ -5,7 +5,7 @@ import numpy as np
 from airobot import Robot, log_info
 from airobot.utils.common import euler2quat, quat2euler
 
-class PokingEnv:
+class PokingEnv(object):
     """
     Poking environment: loads initial object on a table
     """
@@ -32,9 +32,9 @@ class PokingEnv:
         self.box_z = 1 - 0.005
         self.box_pos = [self.table_x, self.table_y, self.box_z]
         self.box_size = 0.02 # distance between center frame and size, box size 0.04
-        # poke config
-        self.poke_len_min = 0.05 # poke_len by default [0.05-0.1]
-        self.poke_len_range = 0.05
+        # poke config: poke_len by default [0.06-0.04]
+        self.poke_len_min = 0.06 # 0.06 ensures no contact with box empiracally
+        self.poke_len_range = 0.04
         # image processing config
         self.row_min = 40
         self.row_max = 360
@@ -134,10 +134,13 @@ class PokingEnv:
                                                scaling=self.table_scaling)
 
 
-    def load_box(self, rgba=[1, 0, 0, 1]):
+    def load_box(self, pos=None, quat=None, rgba=[1, 0, 0, 1]):
+        if pos is None:
+            pos = self.box_pos
         return self.robot.pb_client.load_geom('box', size=self.box_size,
                                                      mass=1,
-                                                     base_pos=self.box_pos,
+                                                     base_pos=pos,
+                                                     base_ori=quat,
                                                      rgba=rgba)
 
 
@@ -147,6 +150,10 @@ class PokingEnv:
         if pos is None:
             pos = self.box_pos
         return self.robot.pb_client.reset_body(box_id, pos, quat)
+
+
+    def remove_box(self, box_id):
+        self.robot.pb_client.remove_body(box_id)
 
 
     def get_ee_pose(self):
