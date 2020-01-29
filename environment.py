@@ -25,7 +25,7 @@ class PokingEnv:
         self.workspace_max_y = 0.3
         self.workspace_min_y = -0.3
         # robot end-effector
-        self.ee_min_height = 1.0
+        self.ee_min_height = 0.99
         self.ee_rest_height = 1.1 # stick scale="0.0001 0.0001 0.0007"
         self.ee_home = [self.table_x, self.table_y, self.ee_rest_height]
         # initial object location
@@ -48,6 +48,7 @@ class PokingEnv:
         self.robot.arm.go_home()
         self.ee_origin = self.robot.arm.get_ee_pose()
         self.go_home()
+        self._home_jpos = self.robot.arm.get_jpos()
         # load table
         self.table_id = self.load_table()
         # load box
@@ -75,7 +76,7 @@ class PokingEnv:
             obj_x, obj_y, obj_z = obj_pos
             # check if cube is on table and still
             if obj_z < self.table_surface_height or lin_vel[0] > 1e-3:
-                print(obj_z, lin_vel[0])
+                print("object height: ", obj_z, "object x linear velocity: ", lin_vel[0])
                 self.reset_box()
                 continue
             # log images
@@ -112,12 +113,18 @@ class PokingEnv:
         return self.robot.arm.move_ee_xyz(delta_xyz, eef_step=0.015)
 
 
-    def set_ee_pose(self, pos, ori=None):
-        return self.robot.arm.set_ee_pose(pos, ori)
+    def set_ee_pose(self, pos, ori=None, ignore_physics=False):
+        jpos = self.robot.arm.compute_ik(pos, ori)
+        return self.robot.arm.set_jpos(jpos, wait=True, ignore_physics=ignore_physics)
 
 
     def go_home(self):
         self.set_ee_pose(self.ee_home, self.ee_origin[1])
+
+
+    def tele_home(self):
+        # directly use joint values as solving ik may return different values
+        return self.robot.arm.set_jpos(position=self._home_jpos, ignore_physics=True)
 
 
     def load_table(self):
@@ -128,18 +135,18 @@ class PokingEnv:
 
 
     def load_box(self, rgba=[1, 0, 0, 1]):
-        return self.robot.pb_client.load_geom('cylinder', size=[0.03, 0.04],#self.box_size,
-                                                     mass=10,
+        return self.robot.pb_client.load_geom('box', size=self.box_size,
+                                                     mass=1,
                                                      base_pos=self.box_pos,
                                                      rgba=rgba)
 
 
     def reset_box(self, box_id=None, pos=None, quat=None):
-        if not box_id:
+        if box_id is None:
             box_id = self.box_id
-        if not pos:
+        if pos is None:
             pos = self.box_pos
-        self.robot.pb_client.reset_body(box_id, pos, quat)
+        return self.robot.pb_client.reset_body(box_id, pos, quat)
 
 
     def get_ee_pose(self):
@@ -147,7 +154,7 @@ class PokingEnv:
 
 
     def get_box_pose(self, box_id=None):
-        if not box_id:
+        if box_id is None:
             box_id = self.box_id
         pos, quat, lin_vel, _ = self.robot.pb_client.get_body_state(box_id)
         rpy = quat2euler(quat=quat)
@@ -171,7 +178,7 @@ class PokingEnv:
         """
         return fractional pixel representations from world frame XYZ coordinates
         """
-        if not Z:
+        if Z is None:
             Z = self.table_surface_height
         if (self.ext_mat is None) or (self.int_mat is None):
             raise ValueError('Please set up the camera matrices')
@@ -225,6 +232,17 @@ class PokingEnv:
         return start_jpos, end_jpos
 
 
+    # def tele_poke(self, start_x, start_y, end_x, end_y):
+    #     # teleport to poke locations
+    #     self.set_ee_pose(pos=[start_x, start_y, self.ee_min_height], ignore_physics=True)
+    #     # log joint angles
+    #     start_jpos = self.robot.arm.get_jpos()
+    #     self.move_ee_xyz([end_x-start_x, end_y-start_y, 0]) # poke
+    #     end_jpos = self.robot.arm.get_jpos()
+    #     self.tele_home()
+    #     return start_jpos, end_jpos
+
+
     def stress_test_poke(self, obj_x=None, obj_y=None):
         if obj_x is None:
             obj_x = self.workspace_max_x
@@ -242,14 +260,30 @@ class PokingEnv:
     def boundary_poke(self, length=0.9):
         # 0.91 is the max length without locking the arm
         interval = np.pi/6 / 6
-        for i in range(11):
-            ang = i * interval
+        for i in range(7):
+            ang = -i * interval
             x = length * np.cos(ang)
             y = length * np.sin(ang)
             self.move_ee_xyz([x-0.6, y-0, 0])
             self.move_ee_xyz([0, 0, -0.1])
             self.move_ee_xyz([0, 0, 0.1])
             self.go_home()
+
+
+    def reproducibility_test(self, seed=0):
+        while True:
+            self.go_home()
+            self.reset_box()
+            np.random.seed(seed)
+            _, _, start_x, start_y, end_x, end_y = self.sample_poke(self.box_pos[0], self.box_pos[1])
+            self.execute_poke(start_x=start_x, start_y=start_y, end_x=end_x, end_y=end_y)
+            self.get_img()
+            pos, _, rpy, _ = self.get_box_pose()
+            print(pos, rpy)
+
+
+
+
 
 
 if __name__ == '__main__':
