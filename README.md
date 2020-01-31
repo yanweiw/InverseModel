@@ -85,3 +85,9 @@ replaypoke.gif: replay from good data
 stochastic_poke.gif: red block and blue block overlapping 
 
 
+good_data: no unreachable errors, max_arm_reach set to 0.90
+image_80: 1k
+image_81: 44k
+image_82: 30k 
+image_83: 13k
+image_84: 21k
