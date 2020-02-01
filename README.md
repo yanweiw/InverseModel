@@ -91,3 +91,6 @@ image_81: 44k
 image_82: 30k 
 image_83: 13k
 image_84: 21k
+
+
+image_85-88: 70k, no unreachable errors, max_arm_reach set to 0.91, x_max boundary set to 0.75

@@ -20,7 +20,7 @@ class PokingEnv(object):
         self.table_ori = euler2quat([0, 0, np.pi/2])
         # task space x ~ (0.4, 0.8); y ~ (-0.3, 0.3)
         self.max_arm_reach = 0.91
-        self.workspace_max_x = 0.8
+        self.workspace_max_x = 0.75 # 0.8 discouraged, as box can move past max arm reach 
         self.workspace_min_x = 0.4
         self.workspace_max_y = 0.3
         self.workspace_min_y = -0.3
