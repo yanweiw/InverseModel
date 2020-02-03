@@ -1,4 +1,3 @@
-from __future__ import print_function, division
 import argparse
 import os
 import time
@@ -13,13 +12,9 @@ from matplotlib.image import imread
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from torchvision import transforms, utils, models
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import ReduceLROnPlateau as reduceLR
+from torch.optim.lr_scheduler import StepLR
 
-# Ignore warnings
-# import warnings
-# warnings.filterwarnings("ignore")
 
-# plt.ion()   # interactive mode
 np.set_printoptions(precision=3, suppress=True)
 torch.set_printoptions(precision=3, sci_mode=False)
 
@@ -30,6 +25,8 @@ obx, oby, qt1, qt2, qt3, qt4 = 5, 6, 7, 8, 9, 10 # obj pose before poke
 js1, js2, js3, js4, js5, js6 = 11, 12, 13, 14, 15, 16 # jpos before poke
 je1, je2, je3, je4, je5, je6 = 17, 18, 19, 20, 21, 22 # jpos after poke
 sr, stc, edr, edc, obr, obc = 23, 24, 25, 26, 27, 28 # row and col locations in image
+pang, plen = 29, 30 # poke angle and poke length
+
 
 # default data transform
 default_transform = transforms.Compose([transforms.ToTensor(),
@@ -100,8 +97,10 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
         start_label, end_label = js1, je6
     elif experiment_tag == 'pixel':
         start_label, end_label = sr, obc
+    elif experiment_tag == 'wpoke':
+        start_label, end_label = pang, plen
     else:
-        raise Exception("experiment_tag has to be 'world', 'joint', or 'pixel'")
+        raise Exception("experiment_tag has to be 'world', 'joint', 'pixel', or 'wpoke'")
 
     # build model
     print()
@@ -113,9 +112,9 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     model.fc = nn.Linear(512, end_label-start_label+1)
 
     # specify data folders
-    train_dirs = ['data/image_51', 'data/image_53','data/image_54', 'data/image_56', 'data/image_57']
+    train_dirs = ['data/image_86', 'data/image_87', 'data/image_88']#['data/image_51', 'data/image_53','data/image_54', 'data/image_56', 'data/image_57']
 
-    valid_dirs = ['data/image_50']
+    valid_dirs = ['data/image_85']
     data_dirs = {'train': train_dirs, 'val': valid_dirs}
     train_num_per_dir = train_num
     valid_num_per_dir = valid_num
@@ -152,7 +151,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     model = nn.DataParallel(model)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-    scheduler = reduceLR(optimizer, patience=2)
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.1)
     # record time
     since = time.time()
     last_time = since
@@ -218,7 +217,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
         print('Validation Loss: {:.4f}'.format(valid_loss))
 
         # update learning rate with scheduler
-        scheduler.step(valid_loss)
+        scheduler.step()
 
         # record weights
         if valid_loss < lowest_loss:
@@ -253,10 +252,10 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, required=True, help='random seed')
     parser.add_argument('--bsize', type=int, default=500, help='batch size')
     parser.add_argument('--lr', type=float, default=1e-1, help='learning rate')
-    parser.add_argument('--epoch', type=int, default=30, help='num of epochs')
+    parser.add_argument('--epoch', type=int, default=4, help='num of epochs')
     parser.add_argument('--nwork', type=int, default=8, help='num of workers')
-    parser.add_argument('--train_size', type=int, default=20000, help='num of data from each train dir')
-    parser.add_argument('--valid_size', type=int, default=1000, help='num of data from each valid dir')
+    parser.add_argument('--train_size', type=int, default=70000, help='num of data from each train dir')
+    parser.add_argument('--valid_size', type=int, default=2000, help='num of data from each valid dir')
     parser.add_argument('--use_init', action='store_true', help='use pretrained weights')
     args = parser.parse_args()
     run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,

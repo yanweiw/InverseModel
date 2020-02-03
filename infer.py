@@ -9,8 +9,10 @@ def predict(data_num, model_path, experiment_tag, size, transform, random_init):
         start_label, end_label = js1, je6
     elif experiment_tag == 'pixel':
         start_label, end_label = sr, obc
+    elif experiment_tag == 'wpoke':
+        start_label, end_label = pang, plen
     else:
-        raise Exception("experiment_tag has to be 'world', 'joint', or 'pixel'")
+        raise Exception("experiment_tag has to be 'world', 'joint', 'pixel', or 'wpoke'")
 
     pokeset = PokeDataset(data_dir, start_label, end_label, size, transform)
     testloader = DataLoader(pokeset, batch_size=500, shuffle=False, num_workers=8)
@@ -22,6 +24,7 @@ def predict(data_num, model_path, experiment_tag, size, transform, random_init):
 
     model = model.float().cuda()
     model = nn.DataParallel(model)
+    # sanity check that random weights won't predict any meaningful behaviors
     if random_init:
         print('using random weights...')
         def weight_reset(m):
@@ -43,10 +46,10 @@ def predict(data_num, model_path, experiment_tag, size, transform, random_init):
     indices = np.array(range(size)).reshape(-1, 1)
     pokes = np.hstack([indices, pred_pokes, true_pokes])
     print('saving predictions...')
-    save_path = 'eval/pred_' + data_num + '_' + experiment_tag + '_' + model_path[11:14]+ '.txt'
+    save_path = 'prediction/pred_' + data_num + '_' + experiment_tag + '_' + model_path[11:14]+ '.txt'
     if random_init:
         save_path = save_path[:-4] + '_random.txt'
-    np.savetxt(save_path, pokes)
+    np.savetxt(save_path, pokes, fmt='%.6f')
     print('saved to ', save_path)
 
 if __name__ == '__main__':
