@@ -7,3 +7,7 @@ weights*
 *.png
 runs
 eval
+280kpokes
+280kpokes*
+multipoke
+run_*.sh

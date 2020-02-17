@@ -255,7 +255,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', type=int, default=4, help='num of epochs')
     parser.add_argument('--nwork', type=int, default=8, help='num of workers')
     parser.add_argument('--train_size', type=int, default=70000, help='num of data from each train dir')
-    parser.add_argument('--valid_size', type=int, default=2000, help='num of data from each valid dir')
+    parser.add_argument('--valid_size', type=int, default=20000, help='num of data from each valid dir')
     parser.add_argument('--use_init', action='store_true', help='use pretrained weights')
     args = parser.parse_args()
     run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,

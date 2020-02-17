@@ -20,7 +20,7 @@ class PokingEnv(object):
         self.table_ori = euler2quat([0, 0, np.pi/2])
         # task space x ~ (0.4, 0.8); y ~ (-0.3, 0.3)
         self.max_arm_reach = 0.91
-        self.workspace_max_x = 0.75 # 0.8 discouraged, as box can move past max arm reach 
+        self.workspace_max_x = 0.75 # 0.8 discouraged, as box can move past max arm reach
         self.workspace_min_x = 0.4
         self.workspace_max_y = 0.3
         self.workspace_min_y = -0.3
@@ -32,7 +32,7 @@ class PokingEnv(object):
         self.box_z = 1 - 0.005
         self.box_pos = [self.table_x, self.table_y, self.box_z]
         self.box_size = 0.02 # distance between center frame and size, box size 0.04
-        # poke config: poke_len by default [0.06-0.04]
+        # poke config: poke_len by default [0.06-0.1]
         self.poke_len_min = 0.06 # 0.06 ensures no contact with box empiracally
         self.poke_len_range = 0.04
         # image processing config
@@ -42,9 +42,11 @@ class PokingEnv(object):
         self.col_max = 640
         self.output_row = 100
         self.output_col = 200
-
+        self.row_scale = (self.row_max - self.row_min) / float(self.output_row)
+        self.col_scale = (self.col_max - self.col_min) / float(self.output_col)
+        assert self.col_scale == self.row_scale
         # load robot
-        self.robot = Robot('ur5e_stick', pb_render=ifRender)
+        self.robot = Robot('ur5e_stick', pb=True, pb_cfg={'gui': ifRender})
         self.robot.arm.go_home()
         self.ee_origin = self.robot.arm.get_ee_pose()
         self.go_home()
@@ -106,6 +108,51 @@ class PokingEnv(object):
             if poke_index % 1000 == 0:
                 log_info('number of pokes: %sk' % str(poke_index/1000))
             poke_index += 1
+
+
+    def longpoke(self, poke_len_min, save_dir='multipoke/', poke_num=100):
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        for poke_index in range(poke_num):
+            poke_path = save_dir + str(poke_index).zfill(2)
+            if not os.path.exists(poke_path):
+                os.makedirs(poke_path)
+            # sample initial starting location
+            obj_x = np.random.random() * (self.workspace_max_x-self.workspace_min_x) \
+                    + self.workspace_min_x
+            obj_y = np.random.random() * (self.workspace_max_y-self.workspace_min_y) \
+                    + self.workspace_min_y
+            # sample end location
+            _, _, start_x, start_y, end_x, end_y = self.sample_poke(obj_x, obj_y, poke_len_min)
+            # place arm and object
+            self.go_home()
+            self.reset_box(pos=[obj_x, obj_y, self.box_z])
+            before_rgb, before_dep = self.get_img()
+            before_img = self.resize_rgb(before_rgb)
+            cv2.imwrite(poke_path + '/' + str(0) + '.png', # 0 refers to initial state
+                        cv2.cvtColor(before_img, cv2.COLOR_RGB2BGR))
+            np.save(poke_path + '/' + str(0), before_dep)
+            before_pos, before_quat, _, _ = self.get_box_pose()
+            # teleport obj to end_x and end_y
+            self.reset_box(pos=[end_x, end_y, self.box_z])
+            after_rgb, after_dep = self.get_img()
+            after_img = self.resize_rgb(after_rgb)
+            cv2.imwrite(poke_path + '/' + str(5) + '.png', # 5 refers to goal state
+                        cv2.cvtColor(after_img, cv2.COLOR_RGB2BGR))
+            np.save(poke_path + '/' + str(5), after_dep)
+            after_pos, after_quat, _, _ = self.get_box_pose()
+            # log poke
+            with open(poke_path + '/0.txt', 'w') as file:
+                file.write('%f %f %f %f %f %f %f\n' % \
+                     (start_x, start_y, end_x, end_y, 0, 0, 0)) # 0s are placeholders
+                file.write('%f %f %f %f %f %f %f\n' % \
+                     (before_pos[0], before_pos[1], before_pos[2],
+                      before_quat[0], before_quat[1], before_quat[2], before_quat[3]))
+                file.write('%f %f %f %f %f %f %f\n' % \
+                     (after_pos[0], after_pos[1], after_pos[2],
+                      after_quat[0], after_quat[1], after_quat[2], after_quat[3]))
+
+
 
 
 
@@ -193,20 +240,96 @@ class PokingEnv(object):
         xyz = np.linalg.inv(self.ext_mat).dot(XYZ)[:3]
         pixel_xyz = self.int_mat.dot(xyz)
         pixel_xyz = pixel_xyz / pixel_xyz[2]
-        row_scale = (self.row_max - self.row_min) / float(self.output_row)
-        col_scale = (self.col_max - self.col_min) / float(self.output_col)
-        assert col_scale == row_scale
-        pixel_col = (pixel_xyz[0] - self.col_min) / col_scale # due to image cropping and scaling
-        pixel_row = (pixel_xyz[1] - self.row_min) / row_scale
+        pixel_col = (pixel_xyz[0] - self.col_min) / self.col_scale # due to image cropping and scaling
+        pixel_row = (pixel_xyz[1] - self.row_min) / self.row_scale
         return pixel_row, pixel_col
 
 
-    def sample_poke(self, obj_x, obj_y):
+    def pixel2xyz(self, depth_im, rs, cs, in_world=True, filter_depth=False,
+                     k=1, ktype='median', depth_min=None, depth_max=None):
+
+        if not isinstance(rs, int) and not isinstance(rs, list) and \
+                not isinstance(rs, np.ndarray):
+            raise TypeError('rs should be an int, a list or a numpy array')
+        if not isinstance(cs, int) and not isinstance(cs, list) and \
+                not isinstance(cs, np.ndarray):
+            raise TypeError('cs should be an int, a list or a numpy array')
+        if isinstance(rs, int):
+            rs = [rs]
+        if isinstance(cs, int):
+            cs = [cs]
+        if isinstance(rs, np.ndarray):
+            rs = rs.flatten()
+        if isinstance(cs, np.ndarray):
+            cs = cs.flatten()
+        if not (isinstance(k, int) and (k % 2) == 1):
+            raise TypeError('k should be a positive odd integer.')
+        # _, depth_im = self.get_images(get_rgb=False, get_depth=True)
+        if k == 1:
+            depth_im = depth_im[rs, cs]
+        else:
+            depth_im_list = []
+            if ktype == 'min':
+                ktype_func = np.min
+            elif ktype == 'max':
+                ktype_func = np.max
+            elif ktype == 'median':
+                ktype_func = np.median
+            elif ktype == 'mean':
+                ktype_func = np.mean
+            else:
+                raise TypeError('Unsupported ktype:[%s]' % ktype)
+            for r, c in zip(rs, cs):
+                s = k // 2
+                rmin = max(0, r - s)
+                rmax = min(self.img_height, r + s + 1)
+                cmin = max(0, c - s)
+                cmax = min(self.img_width, c + s + 1)
+                depth_im_list.append(ktype_func(depth_im[rmin:rmax,
+                                                cmin:cmax]))
+            depth_im = np.array(depth_im_list)
+
+        depth = depth_im.reshape(-1) * 1 #self.depth_scale
+        img_pixs = np.stack((rs, cs)).reshape(2, -1)
+        img_pixs[[0, 1], :] = img_pixs[[1, 0], :]
+        depth_min = depth_min if depth_min else 0.01 #self.depth_min
+        depth_max = depth_max if depth_max else 10 #self.depth_max
+        if filter_depth:
+            valid = depth > depth_min
+            valid = np.logical_and(valid,
+                                   depth < depth_max)
+            depth = depth[:, valid]
+            img_pixs = img_pixs[:, valid]
+
+        self.get_img() # to set up camera matrices
+        cam_int_mat_inv = self.robot.cam.cam_int_mat_inv
+        cam_ext_mat = self.robot.cam.cam_ext_mat
+        uv_one = np.concatenate((img_pixs,
+                                 np.ones((1, img_pixs.shape[1]))))
+        uv_one_in_cam = np.dot(cam_int_mat_inv, uv_one)
+        pts_in_cam = np.multiply(uv_one_in_cam, depth)
+        if in_world:
+            if cam_ext_mat is None:
+                raise ValueError('Please call set_cam_ext() first to set up'
+                                 ' the camera extrinsic matrix')
+            pts_in_cam = np.concatenate((pts_in_cam,
+                                         np.ones((1, pts_in_cam.shape[1]))),
+                                        axis=0)
+            pts_in_world = np.dot(cam_ext_mat, pts_in_cam)
+            pts_in_world = pts_in_world[:3, :].T
+            return pts_in_world
+        else:
+            return pts_in_cam.T
+
+
+    def sample_poke(self, obj_x, obj_y, poke_len_min=None):
+        if poke_len_min is None:
+            poke_len_min = self.poke_len_min
         while True:
             # choose poke angle along the z axis
             poke_ang = np.random.random() * np.pi * 2 - np.pi
             # choose poke length
-            poke_len = np.random.random() * self.poke_len_range + self.poke_len_min
+            poke_len = np.random.random() * self.poke_len_range + poke_len_min
             # calc starting poke location and ending poke loaction
             start_x = obj_x - self.poke_len_min * np.cos(poke_ang)
             start_y = obj_y - self.poke_len_min * np.sin(poke_ang)
@@ -216,7 +339,7 @@ class PokingEnv(object):
             end_radius = np.sqrt(end_x**2 + end_y**2)
             # find valid poke that does not lock the arm
             if start_radius < self.max_arm_reach \
-                and end_radius + self.poke_len_min < self.max_arm_reach \
+                and end_radius + poke_len_min < self.max_arm_reach \
                 and end_x > self.workspace_min_x and end_x < self.workspace_max_x \
                 and end_y > self.workspace_min_y and end_y < self.workspace_max_y:
                 # find poke that does not push obj out of workspace (camera view)
