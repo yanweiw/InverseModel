@@ -62,7 +62,7 @@ class InferOnline():
 
         for i, p in enumerate(self.pred_pokes):
             save_path = os.path.join(self.data_dir, str(i).zfill(2), str(attempt_num)+'.txt')
-            poke = np.zeros(6)
+            poke = np.zeros(7)
             poke[:4] = p[:4]
             np.savetxt(save_path, poke, fmt='%.6f', newline=" ")
 

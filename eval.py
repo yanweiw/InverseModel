@@ -63,7 +63,6 @@ class EvalPoke():
                     raise ValueError('load ground truth')
                 depth_file = self.gt_file[:-4] + '_depth/' + str(i) + '.npy'
                 poke = self.pixel2world(rows, cols, depth_file)
-                print(poke)
             elif tag == 'joint': # gt pokes calc from joint values
                 pass
             else:
@@ -151,12 +150,15 @@ class EvalPoke():
         world_stx, world_sty, world_edx, world_edy = 1, 2, 3, 4
         world_stx_gt, world_sty_gt, world_edx_gt, world_edy_gt = 7, 8, 9, 10
         # pixel indexs
+        pixel_str, pixel_stc, pixel_edr, pixel_edc = 1, 2, 3, 4
+        pixel_str_gt, pixel_stc_gt, pixel_edr_gt, pixel_edc_gt = 7, 8, 9, 10
         # joint indexs
         self.load_pokedata(gtfile, pdfile)
         if (self.gt is None) or (self.pd is None):
             raise ValueError('load ground truth and prediction file')
         accu_dist = 0.0
         query = np.random.randint(0, len(self.pd)-1, test_num) # len-1 avoids end row access
+        dist_list = []
         for i in query:
             img_idx = int(self.pd[i][0])
             obj_start = self.gt[img_idx, obx:qt4+1]
@@ -171,9 +173,17 @@ class EvalPoke():
                 poke_len = self.pd[i][wpoke_len]
                 print('ang: ', poke_ang, ' len: ', poke_len)
                 poke = self.wpoke2world(obj_start[0], obj_start[1], poke_ang, poke_len)
+            elif tag == 'pixel':
+                rows = np.array([self.pd[i, pixel_str], self.pd[i, pixel_edr]])
+                cols = np.array([self.pd[i, pixel_stc], self.pd[i, pixel_edc]])
+                depth_file = gtfile[:-4] + '_depth/' + str(i) + '.npy'
+                poke = self.pixel2world(rows, cols, depth_file)
             else:
                 raise ValueError('tag has to be gt, wpoke, world, joint and pixel')
-            accu_dist += self.eval_poke(poke, obj_start, obj_end)
+            curr_dist = self.eval_poke(poke, obj_start, obj_end)
+            accu_dist += curr_dist
+            dist_list.append(curr_dist)
+        np.savetxt('poke_eval/' + pdfile[11:], np.array(dist_list))
         return accu_dist / len(query)
 
 
