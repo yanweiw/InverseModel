@@ -50,6 +50,7 @@ class InferOnline():
         self.model = nn.DataParallel(self.model)
         self.model.load_state_dict(torch.load(model_path))
         self.model.eval()
+        self.pred_pokes = None
 
     def predict(self, attempt_num):
         assert attempt_num > 0 # to prevent overiding ground truth .txt
@@ -58,7 +59,10 @@ class InferOnline():
                 inputs = data['img'].cuda()
                 gtpoke = data['poke']
                 outputs = self.model(inputs).cpu().numpy()
-                self.pred_pokes = outputs
+                if self.pred_pokes is None:
+                    self.pred_pokes = outputs
+                else:
+                    self.pred_pokes = np.vstack((self.pred_pokes, outputs))
 
         for i, p in enumerate(self.pred_pokes):
             save_path = os.path.join(self.data_dir, str(i).zfill(2), str(attempt_num)+'.txt')
