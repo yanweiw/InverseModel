@@ -1,0 +1,43 @@
+Data Explanation
+
+image set 85, 86, 87, 88 each contains 70k pokes(slightly more than 70k), which
+collectively constitute 280k pokes
+
+image_8*, image_8*_depth, and image_8*.txt form a set,
+  where image folder contains continuous frames, i.e. image_t + poke_t -> image_t+1,
+  image depth folder contains corresponding depth image with a scaling of 10000.0
+  image.txt documents the specifics of a poke: (each row represents one poke)
+    row entry   (world frame coordinates)
+            0   poke index
+            1   start_poke_x
+            2   start_poke_y
+            3   end_poke_x
+            4   end_poke_y
+            5   curr_obj_x
+            6   curr_obj_y
+            7   obj_quaternion[0]
+            8   obj_quaternion[1]
+            9   obj_quaternion[2]
+            10  obj_quaternion[3]
+                (robot joint values)
+            11  start_poke_joint_1
+            12  start_poke_joint_2
+            13  start_poke_joint_3
+            14  start_poke_joint_4
+            15  start_poke_joint_5
+            16  start_poke_joint_6
+            17  end_poke_joint_1
+            18  end_poke_joint_2
+            19  end_poke_joint_3
+            20  end_poke_joint_4
+            21  end_poke_joint_5
+            22  end_poke_joint_6
+                (image frame pixel coordinates)
+            23  start_poke_row
+            24  start_poke_col
+            25  end_poke_row
+            26  end_poke_col
+            27  curr_obj_row
+            28  curr_obj_col
+            29  poke_angle w.r.t obj center of mass
+            30  poke_length from obj center of mass to end poking location
