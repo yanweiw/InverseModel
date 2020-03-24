@@ -71,7 +71,7 @@ class EvalPoke():
             _ = self.eval_poke(poke, obj_start, obj_end)
 
 
-    def eval_poke(self, poke, obj_start, obj_end):
+    def eval_poke(self, poke, obj_start, obj_end, img_idx=None, save_image_dir=None):
         """
         evaluate/visualize a single poke
         obj_start and obj_end: (x, y, q1, q2, q3, q4)
@@ -80,8 +80,23 @@ class EvalPoke():
                       quat=obj_start[-4:])
         self.set_goal(pos=[obj_end[0], obj_end[1], self.env.box_z],
                       quat=obj_end[-4:])
+
+        # log images
+        rgb, _ = self.env.get_img() # rgb 0-255 uint8; dep float32
+        if img_idx is not None:
+            img = self.env.resize_rgb(rgb) # img 0-255 float32
+            cv2.imwrite(save_image_dir + str(img_idx).zfill(6) + '.png',
+                        cv2.cvtColor(img, cv2.COLOR_RGB2BGR)) # shape (100,200,3)
+
         _, _ = self.env.execute_poke(poke[0], poke[1], poke[2], poke[3])
-        _, _ = self.env.get_img()
+
+        # log images
+        rgb, _ = self.env.get_img() # rgb 0-255 uint8; dep float32
+        if img_idx is not None:
+            img = self.env.resize_rgb(rgb) # img 0-255 float32
+            cv2.imwrite(save_image_dir + str(img_idx+1).zfill(6) + '.png',
+                        cv2.cvtColor(img, cv2.COLOR_RGB2BGR)) # shape (100,200,3)
+
         curr_pos, _, _, _ = self.env.get_box_pose()
         dist = np.sqrt((curr_pos[0]-obj_end[0])**2 + (curr_pos[1]-obj_end[1])**2)
         # remove target box
@@ -97,7 +112,7 @@ class EvalPoke():
         'attempt_idx-1'.txt
         """
         for i in range(len(os.listdir(poke_dir))):
-            poke_path = os.path.join(poke_dir, str(i).zfill(2))
+            poke_path = os.path.join(poke_dir, str(i).zfill(3))
             # set box pose
             prev_state = np.loadtxt(os.path.join(poke_path, str(attempt_idx-1)+'.txt'))
             box_pose = prev_state[1]
@@ -114,16 +129,19 @@ class EvalPoke():
             after_img = self.env.resize_rgb(after_rgb)
             cv2.imwrite(poke_path + '/' + str(attempt_idx) + '.png', # 5 refers to goal state
                         cv2.cvtColor(after_img, cv2.COLOR_RGB2BGR))
-            np.save(poke_path + '/' + str(attempt_idx), after_dep)
+            self.env.save_dep(poke_path + '/dep_' + str(attempt_idx) + '.png', after_dep) 
             after_pos, after_quat, _, _ = self.env.get_box_pose()
             self.env.remove_box(self.box_id2)
             # log poke
             with open(os.path.join(poke_path, str(attempt_idx)+'.txt'), 'w') as file:
+                # poke
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (poke[0], poke[1], poke[2], poke[3], 0, 0, 0)) # 0s are placeholders
+                # job pose after poke
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (after_pos[0], after_pos[1], after_pos[2],
                       after_quat[0], after_quat[1], after_quat[2], after_quat[3]))
+                # obj target pose
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (box_target[0], box_target[1], box_target[2],
                       box_target[0], box_target[1], box_target[2], box_target[3]))
@@ -138,7 +156,7 @@ class EvalPoke():
         # _, _ = self.env.get_img()
 
 
-    def batch_eval(self, gtfile, pdfile, tag, test_num=100):
+    def batch_eval(self, gtfile, pdfile, tag, test_num=100, log_images=False):
         """
         batch eval predictions
         """
@@ -159,6 +177,12 @@ class EvalPoke():
         accu_dist = 0.0
         query = np.random.randint(0, len(self.pd)-1, test_num) # len-1 avoids end row access
         dist_list = []
+
+        if log_images:
+            save_image_dir = 'eval_sequence/' + tag + '/'
+            if not os.path.exists(save_image_dir):
+                os.mkdir(save_image_dir)
+
         for i in query:
             img_idx = int(self.pd[i][0])
             obj_start = self.gt[img_idx, obx:qt4+1]
@@ -180,7 +204,10 @@ class EvalPoke():
                 poke = self.pixel2world(rows, cols, depth_file)
             else:
                 raise ValueError('tag has to be gt, wpoke, world, joint and pixel')
-            curr_dist = self.eval_poke(poke, obj_start, obj_end)
+            if log_images:
+                curr_dist = self.eval_poke(poke, obj_start, obj_end, img_idx, save_image_dir)
+            else:
+                curr_dist = self.eval_poke(poke, obj_start, obj_end)
             accu_dist += curr_dist
             dist_list.append(curr_dist)
         np.savetxt('poke_eval/' + pdfile[11:], np.array(dist_list))
@@ -226,11 +253,12 @@ if __name__ == '__main__':
     parser.add_argument('--pd', default=None, help='pred file')
     parser.add_argument('--tag', default='gt', help='world, wpoke, joint or pixel, default is gt')
     parser.add_argument('--num', type=int, default=100, help='test num')
+    parser.add_argument('--log_images', action='store_true', help='log images in eval_sequence folder')
     args = parser.parse_args()
     eva = EvalPoke(ifRender=args.render)
 
     if (args.gt is not None) and (args.pd is not None):
-        accu_dist = eva.batch_eval(args.gt, args.pd, args.tag, args.num)
+        accu_dist = eva.batch_eval(args.gt, args.pd, args.tag, args.num, args.log_images)
         print('')
         print('accu_dist for ', args.pd)
         print('tag: ', args.tag)
