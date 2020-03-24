@@ -59,13 +59,13 @@ class PokeDataset(Dataset):
             raise ValueError('idx must be smaller than the len-1\
                                 in order to get two images')
 
-        img1_name = os.path.join(self.dirname, str(int(self.data[idx, 0]))) + '.png'
+        img1_name = os.path.join(self.dirname, str(int(self.data[idx, 0])).zfill(6)) + '.png'
         # fix the last idx using identity poke (i.e. zero poke)
         if idx == self.__len__()-1:
             img2_name = img1_name
             poke = np.zeros((self.end_label-self.start_label+1,), dtype='float32')
         else:
-            img2_name = os.path.join(self.dirname, str(int(self.data[idx, 0])+1)) + '.png'
+            img2_name = os.path.join(self.dirname, str(int(self.data[idx, 0])+1).zfill(6)) + '.png'
             poke = np.float32(self.data[idx, self.start_label:self.end_label+1])
 
         poke = np.array(poke)
@@ -112,9 +112,9 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     model.fc = nn.Linear(512, end_label-start_label+1)
 
     # specify data folders
-    train_dirs = ['data/image_86', 'data/image_87', 'data/image_88']#['data/image_51', 'data/image_53','data/image_54', 'data/image_56', 'data/image_57']
-
-    valid_dirs = ['data/image_85']
+    train_dirs = ['data/image_0', 'data/image_1', 'data/image_2', 'data/image_3', 'data/image_4','data/image_5', 'data/image_6'] 
+    #['data/image_86', 'data/image_87', 'data/image_88']
+    valid_dirs = ['data/image_7'] #['data/image_85']
     data_dirs = {'train': train_dirs, 'val': valid_dirs}
     train_num_per_dir = train_num
     valid_num_per_dir = valid_num
@@ -138,9 +138,9 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     dataloaders = {'train': train_loader, 'val': valid_loader}
 
     # write to tensorboard images and model graphs
-    writer = SummaryWriter('runs/run'+str(seed))
+    writer = SummaryWriter('runs/run'+str(seed).zfill(3))
     dataiter = iter(train_loader)
-    images = dataiter.next()['img'][:50]
+    images = dataiter.next()['img'][:20]
     img_grid = utils.make_grid(images)
     writer.add_image('pokes', img_grid)
     writer.add_graph(model, images)
@@ -237,8 +237,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
 
     # save best model weights
     print("saving model's learned parameters...")
-    save_path = 'weights/run' + str(seed) + '_' + experiment_tag + '_bs' + str(bsize) \
-                + '_lr' + str(lr) + '_ep' + str(num_epochs) +'.pth'
+    save_path = 'weights/run' + str(seed).zfill(3) + '_' + experiment_tag + '_ep' + str(num_epochs) +'.pth'
     torch.save(model.state_dict(), save_path)
     print("model saved to ", save_path)
     print()
@@ -254,8 +253,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-1, help='learning rate')
     parser.add_argument('--epoch', type=int, default=4, help='num of epochs')
     parser.add_argument('--nwork', type=int, default=8, help='num of workers')
-    parser.add_argument('--train_size', type=int, default=70000, help='num of data from each train dir')
-    parser.add_argument('--valid_size', type=int, default=20000, help='num of data from each valid dir')
+    parser.add_argument('--train_size', type=int, default=30000, help='num of data from each train dir')
+    parser.add_argument('--valid_size', type=int, default=10000, help='num of data from each valid dir')
     parser.add_argument('--use_init', action='store_true', help='use pretrained weights')
     args = parser.parse_args()
     run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,
