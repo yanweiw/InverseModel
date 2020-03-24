@@ -10,7 +10,7 @@ class MultiPokeSet(Dataset):
         return len(os.listdir(self.dirname))
 
     def __getitem__(self, idx):
-        idxpath = str(idx).zfill(2)
+        idxpath = str(idx).zfill(3)
         pokepath = os.path.join(self.dirname, idxpath)
         img1_name = os.path.join(pokepath, '0.png')
         img2_name = os.path.join(pokepath, '5.png')
@@ -64,8 +64,11 @@ class InferOnline():
                 else:
                     self.pred_pokes = np.vstack((self.pred_pokes, outputs))
 
-        for i, p in enumerate(self.pred_pokes):
-            save_path = os.path.join(self.data_dir, str(i).zfill(2), str(attempt_num)+'.txt')
+        # make sure we are not accumulated 
+        assert self.pred_pokes.size <= len(self.pokeset)
+
+        for i, p in enumerate(self.pred_pokes): 
+            save_path = os.path.join(self.data_dir, str(i).zfill(3), str(attempt_num)+'.txt')
             poke = np.zeros(7)
             poke[:4] = p[:4]
             np.savetxt(save_path, poke, fmt='%.6f', newline=" ")
