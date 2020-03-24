@@ -46,7 +46,7 @@ class PokingEnv(object):
         self.col_scale = (self.col_max - self.col_min) / float(self.output_col)
         assert self.col_scale == self.row_scale
         # load robot
-        self.robot = Robot('ur5e_stick', pb=True, pb_cfg={'gui': ifRender})
+        self.robot = Robot('ur5e_stick', pb=True, pb_cfg={'gui': ifRender, 'opengl_render': False})
         self.robot.arm.go_home()
         self.ee_origin = self.robot.arm.get_ee_pose()
         self.go_home()
@@ -62,7 +62,7 @@ class PokingEnv(object):
         self.int_mat = self.robot.cam.get_cam_int()
 
 
-    def poke(self, save_dir='data/image'):
+    def poke(self, save_dir='data/image', max_num=999999): #max_num is fixed by zfill(6)
         # setup directories
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -73,7 +73,7 @@ class PokingEnv(object):
         self.go_home()
         self.reset_box()
         poke_index = 0
-        while True:
+        while poke_index <= max_num:
             obj_pos, obj_quat, _, lin_vel = self.get_box_pose()
             obj_x, obj_y, obj_z = obj_pos
             # check if cube is on table and still
@@ -84,9 +84,9 @@ class PokingEnv(object):
             # log images
             rgb, dep = self.get_img()  # rgb 0-255 uint8; dep float32
             img = self.resize_rgb(rgb) # img 0-255 float32
-            cv2.imwrite(save_dir + '/' + str(poke_index) + '.png',
+            cv2.imwrite(save_dir + '/' + str(poke_index).zfill(6) + '.png',
                         cv2.cvtColor(img, cv2.COLOR_RGB2BGR)) # shape (100,200,3)
-            np.save(save_dir + '_depth/' + str(poke_index), dep) # shape (480,640)
+            self.save_dep(save_dir + '_depth/' + str(poke_index).zfill(6) + '.png', dep) # shape (480, 640)
             # generate random poke through box center
             poke_ang, poke_len, start_x, start_y, end_x, end_y = self.sample_poke(obj_x, obj_y)
             # calc poke and obj locations in image pixel space
@@ -99,8 +99,8 @@ class PokingEnv(object):
             je1, je2, je3, je4, je5, je6 = end_jpos
             # log poke
             with open(save_dir + '.txt', 'a') as file:
-                file.write('%d %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
-                    (poke_index, start_x, start_y, end_x, end_y, obj_x, obj_y,
+                file.write('%s %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n' % \
+                    (str(poke_index).zfill(6), start_x, start_y, end_x, end_y, obj_x, obj_y,
                     obj_quat[0], obj_quat[1], obj_quat[2], obj_quat[3],
                     js1, js2, js3, js4, js5, js6, je1, je2, je3, je4, je5, je6,
                     start_r, start_c, end_r, end_c, obj_r, obj_c, poke_ang, poke_len))
@@ -114,7 +114,7 @@ class PokingEnv(object):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         for poke_index in range(poke_num):
-            poke_path = save_dir + str(poke_index).zfill(2)
+            poke_path = save_dir + str(poke_index).zfill(3)
             if not os.path.exists(poke_path):
                 os.makedirs(poke_path)
             # sample initial starting location
@@ -131,7 +131,7 @@ class PokingEnv(object):
             before_img = self.resize_rgb(before_rgb)
             cv2.imwrite(poke_path + '/' + str(0) + '.png', # 0 refers to initial state
                         cv2.cvtColor(before_img, cv2.COLOR_RGB2BGR))
-            np.save(poke_path + '/' + str(0), before_dep)
+            self.save_dep(poke_path + '/dep_' + str(0) + '.png', before_dep) 
             before_pos, before_quat, _, _ = self.get_box_pose()
             # teleport obj to end_x and end_y
             self.reset_box(pos=[end_x, end_y, self.box_z])
@@ -139,15 +139,18 @@ class PokingEnv(object):
             after_img = self.resize_rgb(after_rgb)
             cv2.imwrite(poke_path + '/' + str(5) + '.png', # 5 refers to goal state
                         cv2.cvtColor(after_img, cv2.COLOR_RGB2BGR))
-            np.save(poke_path + '/' + str(5), after_dep)
+            self.save_dep(poke_path + '/dep_' + str(5) + '.png', after_dep) 
             after_pos, after_quat, _, _ = self.get_box_pose()
             # log poke
             with open(poke_path + '/0.txt', 'w') as file:
+                # poke
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (start_x, start_y, end_x, end_y, 0, 0, 0)) # 0s are placeholders
+                # obj pose before poke
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (before_pos[0], before_pos[1], before_pos[2],
                       before_quat[0], before_quat[1], before_quat[2], before_quat[3]))
+                # obj pose after poke
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (after_pos[0], after_pos[1], after_pos[2],
                       after_quat[0], after_quat[1], after_quat[2], after_quat[3]))
@@ -218,6 +221,12 @@ class PokingEnv(object):
     def get_img(self):
         rgb, depth = self.robot.cam.get_images(get_rgb=True, get_depth=True)
         return rgb, depth
+
+
+    def save_dep(self, save_dir, dep):
+        scaling = 10000.0
+        sdep = dep * scaling
+        cv2.imwrite(save_dir, sdep.astype(np.uint16))
 
 
     def resize_rgb(self, rgb):
