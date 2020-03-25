@@ -61,7 +61,7 @@ class EvalPoke():
                 cols = np.array([self.gt[i, stc], self.gt[i, edc]])
                 if self.gt_file is None:
                     raise ValueError('load ground truth')
-                depth_file = self.gt_file[:-4] + '_depth/' + str(i) + '.npy'
+                depth_file = self.gt_file[:-4] + '_depth/' + str(i).zfill(6) + '.png'
                 poke = self.pixel2world(rows, cols, depth_file)
             elif tag == 'joint': # gt pokes calc from joint values
                 pass
@@ -111,41 +111,50 @@ class EvalPoke():
         use poke in 'attempt_idx'.txt to forward simulate the effects on obj_pose in
         'attempt_idx-1'.txt
         """
+        assert attempt_idx <=3 # avoid overwriting target state at 5
+        error_list = []
         for i in range(len(os.listdir(poke_dir))):
             poke_path = os.path.join(poke_dir, str(i).zfill(3))
             # set box pose
-            prev_state = np.loadtxt(os.path.join(poke_path, str(attempt_idx-1)+'.txt'))
-            box_pose = prev_state[1]
-            box_target = prev_state[2]
+            states = np.loadtxt(os.path.join(poke_path, 'states.txt'))
+            assert len(states) >= 2 + attempt_idx # at least initial and target pose
+            box_pose = states[-1] # last state is the curr state
+            box_target = states[0] # first state is target state
             self.env.go_home()
             self.env.reset_box(pos=box_pose[:3], quat=box_pose[3:])
             self.set_goal(box_target[:3], box_target[3:])
             # poke
-            poke = np.loadtxt(os.path.join(poke_path, str(attempt_idx)+'.txt'))
-            if len(poke) == 3:
-                poke = poke[0]
+            pokes = np.loadtxt(os.path.join(poke_path, 'pokes.txt'))
+            assert len(pokes) > 1 + attempt_idx # at least one more poke than gt poke
+            poke = pokes[-1] # last poke is the curr poke to be executed
             _, _ = self.env.execute_poke(poke[0], poke[1], poke[2], poke[3])
+            curr_rgb, _ = self.env.get_img()
+            curr_img = self.env.resize_rgb(curr_rgb)
+            cv2.imwrite(poke_path + '/curr_progress.png', # 5 refers to goal state
+                        cv2.cvtColor(curr_img, cv2.COLOR_RGB2BGR))
+            # remove box and store state
+            self.env.remove_box(self.box_id2)
             after_rgb, after_dep = self.env.get_img()
             after_img = self.env.resize_rgb(after_rgb)
-            cv2.imwrite(poke_path + '/' + str(attempt_idx) + '.png', # 5 refers to goal state
+            cv2.imwrite(poke_path + '/' + str(attempt_idx+1) + '.png', # 5 refers to goal state
                         cv2.cvtColor(after_img, cv2.COLOR_RGB2BGR))
-            self.env.save_dep(poke_path + '/dep_' + str(attempt_idx) + '.png', after_dep) 
+            self.env.save_dep(poke_path + '/dep_' + str(attempt_idx+1) + '.png', after_dep) 
+            # log next box pose
             after_pos, after_quat, _, _ = self.env.get_box_pose()
-            self.env.remove_box(self.box_id2)
-            # log poke
-            with open(os.path.join(poke_path, str(attempt_idx)+'.txt'), 'w') as file:
-                # poke
-                file.write('%f %f %f %f %f %f %f\n' % \
-                     (poke[0], poke[1], poke[2], poke[3], 0, 0, 0)) # 0s are placeholders
-                # job pose after poke
+            with open(os.path.join(poke_path, 'states.txt'), 'a') as file:
+                # obj pose after poke
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (after_pos[0], after_pos[1], after_pos[2],
                       after_quat[0], after_quat[1], after_quat[2], after_quat[3]))
-                # obj target pose
-                file.write('%f %f %f %f %f %f %f\n' % \
-                     (box_target[0], box_target[1], box_target[2],
-                      box_target[0], box_target[1], box_target[2], box_target[3]))
+            # log errors 
+            with open(os.path.join(poke_path, 'errors.txt'), 'a') as file:
+                error = np.linalg.norm(after_pos[0:2]-box_target[0:2], 2)
+                file.write('%f\n' % error)
+                print(error)
+                error_list.append(error)
 
+        error_arr = np.array(error_list)
+        print('errors mean: %.4f and std: %.4f' % (error_arr.mean(), error_arr.std()))
 
 
 
@@ -200,7 +209,7 @@ class EvalPoke():
             elif tag == 'pixel':
                 rows = np.array([self.pd[i, pixel_str], self.pd[i, pixel_edr]])
                 cols = np.array([self.pd[i, pixel_stc], self.pd[i, pixel_edc]])
-                depth_file = gtfile[:-4] + '_depth/' + str(i) + '.npy'
+                depth_file = gtfile[:-4] + '_depth/' + str(i).zfill(6) + '.png'
                 poke = self.pixel2world(rows, cols, depth_file)
             else:
                 raise ValueError('tag has to be gt, wpoke, world, joint and pixel')
@@ -232,7 +241,7 @@ class EvalPoke():
         """
         rows = ((rows*self.env.row_scale + self.env.row_min) + 0.5).astype(int)
         cols = ((cols*self.env.col_scale) + 0.5).astype(int)
-        depth_im = np.load(depth_file)
+        depth_im = self.env.load_dep(depth_file)
         pokes_3d = self.env.pixel2xyz(depth_im, rows, cols)
         # print(pokes_3d)
         poke = pokes_3d[:, :2].flatten()

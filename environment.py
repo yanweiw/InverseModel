@@ -110,11 +110,12 @@ class PokingEnv(object):
             poke_index += 1
 
 
-    def longpoke(self, poke_len_min, save_dir='multipoke/', poke_num=100):
+    def longpoke(self, poke_len_min, save_dir, poke_num=100):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
+        error_list = [] # record initial errors 
         for poke_index in range(poke_num):
-            poke_path = save_dir + str(poke_index).zfill(3)
+            poke_path = os.path.join(save_dir, str(poke_index).zfill(3))
             if not os.path.exists(poke_path):
                 os.makedirs(poke_path)
             # sample initial starting location
@@ -142,21 +143,35 @@ class PokingEnv(object):
             self.save_dep(poke_path + '/dep_' + str(5) + '.png', after_dep) 
             after_pos, after_quat, _, _ = self.get_box_pose()
             # log poke
-            with open(poke_path + '/0.txt', 'w') as file:
-                # poke
-                file.write('%f %f %f %f %f %f %f\n' % \
-                     (start_x, start_y, end_x, end_y, 0, 0, 0)) # 0s are placeholders
-                # obj pose before poke
-                file.write('%f %f %f %f %f %f %f\n' % \
-                     (before_pos[0], before_pos[1], before_pos[2],
-                      before_quat[0], before_quat[1], before_quat[2], before_quat[3]))
-                # obj pose after poke
+            with open(poke_path + '/pokes.txt', 'w') as file:
+                # first row of pokes record ground truth single poke
+                file.write('%f %f %f %f\n' % \
+                     (start_x, start_y, end_x, end_y)) 
+
+            with open(poke_path + '/states.txt', 'w') as file:
+                # row 0 correspond to object target location 
+                # row 1 correspond to object initial location 
+                # subsequent rows record object pose after each poke 
+
+                # obj pose after poke (target)
                 file.write('%f %f %f %f %f %f %f\n' % \
                      (after_pos[0], after_pos[1], after_pos[2],
                       after_quat[0], after_quat[1], after_quat[2], after_quat[3]))
 
+                # obj pose before poke (initial)
+                file.write('%f %f %f %f %f %f %f\n' % \
+                     (before_pos[0], before_pos[1], before_pos[2],
+                      before_quat[0], before_quat[1], before_quat[2], before_quat[3]))
 
+            with open(poke_path + '/errors.txt', 'w') as file:
+                # documents L1 error between current state and goal state
+                # first line records the initial error in the beginning 
+                error = np.linalg.norm(after_pos[0:2]-before_pos[0:2], 2)
+                file.write('%f\n' % error)
+                error_list.append(error)
 
+        error_arr = np.array(error_list)
+        print('mean error: %.4f, std error: %.4f' % (error_arr.mean(), error_arr.std()))
 
 
     def move_ee_xyz(self, delta_xyz):
@@ -227,6 +242,12 @@ class PokingEnv(object):
         scaling = 10000.0
         sdep = dep * scaling
         cv2.imwrite(save_dir, sdep.astype(np.uint16))
+
+
+    def load_dep(self, load_path):
+        scaling = 10000.0 
+        return cv2.imread(load_path, cv2.IMREAD_UNCHANGED) / scaling
+
 
 
     def resize_rgb(self, rgb):

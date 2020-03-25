@@ -2,9 +2,11 @@ from train import *
 
 class MultiPokeSet(Dataset):
 
-    def __init__(self, dirname, transform=default_transform):
+    def __init__(self, dirname, img1_name, img2_name, transform=default_transform):
         self.dirname = dirname
         self.transform=transform
+        self.img1_name = img1_name
+        self.img2_name = img2_name
 
     def __len__(self):
         return len(os.listdir(self.dirname))
@@ -12,17 +14,14 @@ class MultiPokeSet(Dataset):
     def __getitem__(self, idx):
         idxpath = str(idx).zfill(3)
         pokepath = os.path.join(self.dirname, idxpath)
-        img1_name = os.path.join(pokepath, '0.png')
-        img2_name = os.path.join(pokepath, '5.png')
-        state = np.loadtxt(os.path.join(pokepath, '0.txt'))
-        poke = state[0, 0:4]
-        img1 = imread(img1_name)
-        img2 = imread(img2_name)
+        img1_path = os.path.join(pokepath, self.img1_name)
+        img2_path = os.path.join(pokepath, self.img2_name)
+        img1 = imread(img1_path)
+        img2 = imread(img2_path)
         img = np.vstack([img1, img2])
         if self.transform:
             img = self.transform(img)
-        sample = {'img': img,
-                  'poke': poke}
+        sample = {'img': img}
         return sample
 
 
@@ -42,8 +41,8 @@ class InferOnline():
         else:
             raise Exception("experiment_tag has to be 'world', 'joint', 'pixel', or 'wpoke'")
 
-        self.pokeset = MultiPokeSet(self.data_dir)
-        self.testloader = DataLoader(self.pokeset, batch_size=500, shuffle=False, num_workers=8)
+        self.pokesets = []
+        self.testloaders = []
         self.model = models.resnet18(pretrained=False)
         self.model.fc = nn.Linear(512, end_label-start_label+1)
         self.model = self.model.float().cuda()
@@ -53,25 +52,36 @@ class InferOnline():
         self.pred_pokes = None
 
     def predict(self, attempt_num):
-        assert attempt_num > 0 # to prevent overiding ground truth .txt
+        assert attempt_num >= 0 and attempt_num <= 4
+        # add new datesets created online 
+        pokeset = MultiPokeSet(self.data_dir, str(attempt_num) + '.png', '5.png')
+        testloader = DataLoader(pokeset, batch_size=500, shuffle=False, num_workers=8)
+        self.pokesets.append(pokeset)
+        self.testloaders.append(testloader)
+        assert len(self.pokesets) == attempt_num + 1
+        assert len(self.testloaders) == attempt_num + 1
+
         with torch.no_grad():
-            for data in self.testloader:
+            for data in self.testloaders[attempt_num]:
                 inputs = data['img'].cuda()
-                gtpoke = data['poke']
                 outputs = self.model(inputs).cpu().numpy()
                 if self.pred_pokes is None:
                     self.pred_pokes = outputs
                 else:
                     self.pred_pokes = np.vstack((self.pred_pokes, outputs))
 
-        # make sure we are not accumulated 
-        assert self.pred_pokes.size <= len(self.pokeset)
+        # make sure predictions match pokset in length
+        assert len(self.pred_pokes) == len(self.pokesets[attempt_num])
 
         for i, p in enumerate(self.pred_pokes): 
-            save_path = os.path.join(self.data_dir, str(i).zfill(3), str(attempt_num)+'.txt')
-            poke = np.zeros(7)
-            poke[:4] = p[:4]
-            np.savetxt(save_path, poke, fmt='%.6f', newline=" ")
+            save_path = os.path.join(self.data_dir, str(i).zfill(3), 'pokes.txt')
+            with open(save_path, 'a') as file:
+                file.write('%f %f %f %f\n' % (p[0], p[1], p[2], p[3])) 
+
+        pokelengths = np.linalg.norm(self.pred_pokes[:, :2] - self.pred_pokes[:, 2:4], axis=1)
+        print('inferred pokes mean: %.4f, std: %.4f' % (pokelengths.mean(), pokelengths.std()))
+        # make sure we clear self.pred_pokes for the subsequent predictions
+        self.pred_pokes = None 
 
 
 

@@ -94,3 +94,17 @@ image_84: 21k
 
 
 image_85-88: 70k, no unreachable errors, max_arm_reach set to 0.91, x_max boundary set to 0.75
+
+
+data without shadows 
+image_0 - 6: 30k
+imgae_7: 10k
+image_8: 20k 
+
+
+multipoke folder description
+
+5.png is target state, 0.png is initial state
+pokes.txt records inferred pokes. first line is gt poke
+states.txt records obj poses, first line is target pose, second line is initial pose,
+and subsequent lines are subsequent poses. 
