@@ -114,7 +114,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     # specify data folders
     train_dirs = ['data/image_0', 'data/image_1', 'data/image_2', 'data/image_3', 'data/image_4','data/image_5', 'data/image_6'] 
     #['data/image_86', 'data/image_87', 'data/image_88']
-    valid_dirs = ['data/image_7'] #['data/image_85']
+    valid_dirs = ['data/image_8'] #['data/image_85']
     data_dirs = {'train': train_dirs, 'val': valid_dirs}
     train_num_per_dir = train_num
     valid_num_per_dir = valid_num
@@ -254,7 +254,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', type=int, default=4, help='num of epochs')
     parser.add_argument('--nwork', type=int, default=8, help='num of workers')
     parser.add_argument('--train_size', type=int, default=30000, help='num of data from each train dir')
-    parser.add_argument('--valid_size', type=int, default=10000, help='num of data from each valid dir')
+    parser.add_argument('--valid_size', type=int, default=20000, help='num of data from each valid dir')
     parser.add_argument('--use_init', action='store_true', help='use pretrained weights')
     args = parser.parse_args()
     run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,
