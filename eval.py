@@ -128,9 +128,10 @@ class EvalPoke():
             assert len(pokes) > 1 + attempt_idx # at least one more poke than gt poke
             poke = pokes[-1] # last poke is the curr poke to be executed
             _, _ = self.env.execute_poke(poke[0], poke[1], poke[2], poke[3])
+            # log progress with current attempt
             curr_rgb, _ = self.env.get_img()
             curr_img = self.env.resize_rgb(curr_rgb)
-            cv2.imwrite(poke_path + '/curr_progress.png', # 5 refers to goal state
+            cv2.imwrite(poke_path + '/attempt_' + str(attempt_idx+1) + '.png',
                         cv2.cvtColor(curr_img, cv2.COLOR_RGB2BGR))
             # remove box and store state
             self.env.remove_box(self.box_id2)
