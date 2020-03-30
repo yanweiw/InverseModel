@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 from airobot import Robot, log_info
 from airobot.utils.common import euler2quat, quat2euler
+import pybullet as p
 
 class PokingEnv(object):
     """
@@ -134,6 +135,14 @@ class PokingEnv(object):
                         cv2.cvtColor(before_img, cv2.COLOR_RGB2BGR))
             self.save_dep(poke_path + '/dep_' + str(0) + '.png', before_dep) 
             before_pos, before_quat, _, _ = self.get_box_pose()
+            # log initial starting and target location
+            box_id2 = env.load_box(pos=[end_x, end_y, self.box_z], rgba=[0,0, 1,0.5])
+            p.setCollisionFilterPair(env.box_id, box_id2, -1, -1, enableCollision=0)
+            p.setCollisionFilterPair(box_id2, 1, -1, 10, enableCollision=0) # with arm
+            attempt_0_rgb, _ = self.get_img()
+            attempt_0_img = self.resize_rgb(attempt_0_rgb)
+            cv2.imwrite(poke_path + '/attempt_0.png', cv2.cvtColor(attempt_0_img, cv2.COLOR_RGB2BGR))
+            env.remove_box(box_id2) # remove target 
             # teleport obj to end_x and end_y
             self.reset_box(pos=[end_x, end_y, self.box_z])
             after_rgb, after_dep = self.get_img()
