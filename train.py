@@ -13,6 +13,7 @@ from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from torchvision import transforms, utils, models
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import StepLR
+import torch.nn as nn
 
 
 np.set_printoptions(precision=3, suppress=True)
@@ -71,15 +72,38 @@ class PokeDataset(Dataset):
         poke = np.array(poke)
         img1 = imread(img1_name)
         img2 = imread(img2_name)
-        img = np.vstack([img1, img2])
 
         if self.transform:
-            img = self.transform(img)
+            img1 = self.transform(img1)
+            img2 = self.transform(img2)
 
-        sample = {'img': img,
+        sample = {'img1': img1,
+                  'img2': img2,
                   'poke': poke}
         return sample
 
+
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+
+    def forward(self, x):
+        return x
+
+
+class Siamese(nn.Module):
+    def __init__(self, start_label, end_label, use_pretrained):
+        super(Siamese, self).__init__()
+        self.model = models.resnet18(pretrained=use_pretrained)
+        self.model.fc = Identity() # gives AdaptiveAvePool2d output features
+        self.fc = nn.Sequential(nn.Linear(1024, end_label-start_label+1))
+
+    def forward(self, img1, img2):
+        state1 = self.model(img1)
+        state2 = self.model(img2)
+        states = torch.cat([state1, state2], dim=1)
+        output = self.fc(states)
+        return output
 
 
 def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
@@ -108,8 +132,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
         print('Using pretrained weights...')
     else:
         print('Not using pretrained weights')
-    model = models.resnet18(pretrained=use_pretrained)
-    model.fc = nn.Linear(512, end_label-start_label+1)
+    model = Siamese(start_label, end_label, use_pretrained)
 
     # specify data folders
     train_dirs = ['data/image_0', 'data/image_1', 'data/image_2', 'data/image_3', 'data/image_4','data/image_5', 'data/image_6'] 
@@ -140,10 +163,14 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     # write to tensorboard images and model graphs
     writer = SummaryWriter('runs/run'+str(seed).zfill(3))
     dataiter = iter(train_loader)
-    images = dataiter.next()['img'][:20]
-    img_grid = utils.make_grid(images)
-    writer.add_image('pokes', img_grid)
-    writer.add_graph(model, images)
+    images = dataiter.next()
+    images1 = images['img1'][:20]
+    images2 = images['img2'][:20]
+    img_grid1 = utils.make_grid(images1)
+    img_grid2 = utils.make_grid(images2)
+    writer.add_image('start', img_grid1)
+    writer.add_image('end', img_grid2)
+    # writer.add_graph(model, [images1, images2])
     writer.close()
 
     # start to run experiments
@@ -182,14 +209,16 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
 
             # iterate over data
             for batch_iter, batched_sample in enumerate(dataloaders[phase]):
-                inputs = batched_sample['img']
+                inputs1 = batched_sample['img1']
+                inputs2 = batched_sample['img2'] 
                 labels = batched_sample['poke']
-                inputs = inputs.cuda()
                 labels = labels.cuda()
+                img1 = inputs1.cuda()
+                img2 = inputs2.cuda()
                 optimizer.zero_grad()
                 # forward pass
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
+                    outputs = model(inputs1, inputs2)
                     # L1 loss
                     loss = torch.abs(outputs - labels).mean()
                     # criterion = nn.SmoothL1Loss()
@@ -199,7 +228,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                         optimizer.step()
 
                 # log statistics
-                running_losses[phase] += loss.item() * inputs.size(0)
+                running_losses[phase] += loss.item() * inputs1.size(0)
                 if phase == 'train':
                     if batch_iter % 10 == 0:
                         writer.add_scalar('training_loss', loss.item(),

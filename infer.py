@@ -104,8 +104,7 @@ def predict(data_num, model_path, experiment_tag, size, transform, random_init):
 
     pred_pokes = []
     true_pokes = []
-    model = models.resnet18(pretrained=False)
-    model.fc = nn.Linear(512, end_label-start_label+1)
+    model = Siamese(start_label, end_label, use_pretrained=False)
 
     model = model.float().cuda()
     model = nn.DataParallel(model)
@@ -122,8 +121,9 @@ def predict(data_num, model_path, experiment_tag, size, transform, random_init):
 
     with torch.no_grad():
         for data in testloader:
-            inputs = data['img'].cuda()
-            outputs = model(inputs).cpu().numpy()
+            inputs1 = data['img1'].cuda()
+            inputs2 = data['img2'].cuda()
+            outputs = model(inputs1, inputs2).cpu().numpy()
             pred_pokes.append(outputs)
             true_pokes.append(data['poke'].numpy())
     pred_pokes = np.vstack(pred_pokes)
