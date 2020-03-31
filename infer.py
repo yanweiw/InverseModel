@@ -79,7 +79,7 @@ class InferOnline():
                 file.write('%f %f %f %f\n' % (p[0], p[1], p[2], p[3])) 
 
         pokelengths = np.linalg.norm(self.pred_pokes[:, :2] - self.pred_pokes[:, 2:4], axis=1)
-        print('inferred pokes mean: %.4f, std: %.4f' % (pokelengths.mean(), pokelengths.std()))
+        print('\ninferred pokes mean: %.4f, std: %.4f\n' % (pokelengths.mean(), pokelengths.std()))
         # make sure we clear self.pred_pokes for the subsequent predictions
         self.pred_pokes = None 
 

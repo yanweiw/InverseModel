@@ -155,7 +155,7 @@ class EvalPoke():
                 error_list.append(error)
 
         error_arr = np.array(error_list)
-        print('errors mean: %.4f and std: %.4f' % (error_arr.mean(), error_arr.std()))
+        print('\nerrors mean: %.4f and std: %.4f\n' % (error_arr.mean(), error_arr.std()))
 
 
 
