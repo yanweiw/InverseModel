@@ -123,8 +123,10 @@ def predict(data_num, model_path, experiment_tag, size, transform, random_init):
         for data in testloader:
             inputs1 = data['img1'].cuda()
             inputs2 = data['img2'].cuda()
-            outputs = model(inputs1, inputs2).cpu().numpy()
-            pred_pokes.append(outputs)
+            labels = data['poke'].cuda()
+            inv_pred, _, _ = model(inputs1, inputs2, labels)
+            inv_pred = inv_pred.cpu().numpy()
+            pred_pokes.append(inv_pred)
             true_pokes.append(data['poke'].numpy())
     pred_pokes = np.vstack(pred_pokes)
     true_pokes = np.vstack(true_pokes)

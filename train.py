@@ -94,16 +94,19 @@ class Identity(nn.Module):
 class Siamese(nn.Module):
     def __init__(self, start_label, end_label, use_pretrained):
         super(Siamese, self).__init__()
-        self.model = models.resnet18(pretrained=use_pretrained)
-        self.model.fc = Identity() # gives AdaptiveAvePool2d output features
-        self.fc = nn.Sequential(nn.Linear(1024, end_label-start_label+1))
+        self.model_state = models.resnet18(pretrained=use_pretrained)
+        self.model_state.fc = Identity() # gives AdaptiveAvePool2d output features
+        self.fc1 = nn.Sequential(nn.Linear(1024, end_label-start_label+1))
+        self.fc2 = nn.Sequential(nn.Linear(512+end_label-start_label+1, 512))
 
-    def forward(self, img1, img2):
-        state1 = self.model(img1)
-        state2 = self.model(img2)
+    def forward(self, img1, img2, poke):
+        state1 = self.model_state(img1)
+        state2 = self.model_state(img2)
         states = torch.cat([state1, state2], dim=1)
-        output = self.fc(states)
-        return output
+        state_action = torch.cat([state1, poke], dim=1)
+        inv_pred = self.fc1(states)
+        for_pred = self.fc2(state_action)
+        return inv_pred, for_pred, state2
 
 
 def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
@@ -218,9 +221,11 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                 optimizer.zero_grad()
                 # forward pass
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs1, inputs2)
+                    inv_pred, for_pred, state2 = model(inputs1, inputs2, labels)
                     # L1 loss
-                    loss = torch.abs(outputs - labels).mean()
+                    inv_loss = torch.abs(inv_pred - labels).mean()
+                    for_loss = torch.abs(for_pred - state2).mean()
+                    loss = inv_loss + 0.1*for_loss
                     # criterion = nn.SmoothL1Loss()
                     # loss = criterion(outputs, labels)
                     if phase == 'train':
