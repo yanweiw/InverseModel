@@ -92,7 +92,7 @@ class Identity(nn.Module):
 
 
 class Siamese(nn.Module):
-    def __init__(self, start_label, end_label, use_pretrained):
+    def __init__(self, start_label, end_label, use_pretrained=False):
         super(Siamese, self).__init__()
         self.model_state = models.resnet18(pretrained=use_pretrained)
         self.model_state.fc = Identity() # gives AdaptiveAvePool2d output features
@@ -106,16 +106,19 @@ class Siamese(nn.Module):
         state_action = torch.cat([state1, poke], dim=1)
         inv_pred = self.fc1(states)
         for_pred = self.fc2(state_action)
-        return inv_pred, for_pred, state2
+        state_pred_action = torch.cat([state1, inv_pred], dim=1)
+        for_cons = self.fc2(state_pred_action)
+        return inv_pred, for_pred, state2, for_cons
 
 
 def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
-                    train_num, valid_num, use_pretrained):
+                    train_num, valid_num, use_pretrained, lr_step, loss_type, datasize):
     # set seed
     # torch.manual_seed(seed)
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
     # np.random.seed(seed)
+    print('run num: ', seed)
 
     # decide training objective: predictions in world, joint, or pixel space
     if experiment_tag == 'world':
@@ -130,17 +133,15 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
         raise Exception("experiment_tag has to be 'world', 'joint', 'pixel', or 'wpoke'")
 
     # build model
-    print()
-    if use_pretrained:
-        print('Using pretrained weights...')
-    else:
-        print('Not using pretrained weights')
-    model = Siamese(start_label, end_label, use_pretrained)
+    model = Siamese(start_label, end_label)
 
     # specify data folders
-    train_dirs = ['data/image_0', 'data/image_1', 'data/image_2', 'data/image_3', 'data/image_4','data/image_5', 'data/image_6'] 
-    #['data/image_86', 'data/image_87', 'data/image_88']
-    valid_dirs = ['data/image_8'] #['data/image_85']
+    assert datasize in ['200k', '30k']
+    if datasize == '200k':
+        train_dirs = ['data/image_0', 'data/image_1', 'data/image_2', 'data/image_3', 'data/image_4','data/image_5', 'data/image_6']     
+    if datasize == '30k':
+        train_dirs = ['data/image_0']
+    valid_dirs = ['data/image_8'] 
     data_dirs = {'train': train_dirs, 'val': valid_dirs}
     train_num_per_dir = train_num
     valid_num_per_dir = valid_num
@@ -179,9 +180,17 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     # start to run experiments
     model = model.float().cuda()
     model = nn.DataParallel(model)
+    # load pretrained weights
+    print()
+    if use_pretrained:
+        print('Using pretrained weights...', use_pretrained)
+        model.load_state_dict(torch.load(use_pretrained))
+    else:
+        print('Not using pretrained weights')
+
     optimizer = optim.Adam(model.parameters(), lr=lr)
     # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.1)
+    scheduler = StepLR(optimizer, step_size=lr_step, gamma=0.1)
     # record time
     since = time.time()
     last_time = since
@@ -221,13 +230,20 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                 optimizer.zero_grad()
                 # forward pass
                 with torch.set_grad_enabled(phase == 'train'):
-                    inv_pred, for_pred, state2 = model(inputs1, inputs2, labels)
-                    # L1 loss
+                    inv_pred, for_pred, state2, for_cons = model(inputs1, inputs2, labels)
+                    # losses
+                    # criterion = nn.SmoothL1Loss() # huber loss
                     inv_loss = torch.abs(inv_pred - labels).mean()
                     for_loss = torch.abs(for_pred - state2).mean()
-                    loss = inv_loss + 0.1*for_loss
-                    # criterion = nn.SmoothL1Loss()
-                    # loss = criterion(outputs, labels)
+                    cons_loss = torch.abs(for_cons - state2).mean()
+                    assert loss_type in ['inv', 'for', 'cons']
+                    if loss_type == 'inv':
+                        loss = inv_loss
+                    if loss_type == 'for':
+                        loss = inv_loss + 0.1*for_loss
+                    if loss_type == 'cons':
+                        loss = inv_loss + for_loss + 0.1*cons_loss
+
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
@@ -289,8 +305,13 @@ if __name__ == '__main__':
     parser.add_argument('--nwork', type=int, default=8, help='num of workers')
     parser.add_argument('--train_size', type=int, default=30000, help='num of data from each train dir')
     parser.add_argument('--valid_size', type=int, default=20000, help='num of data from each valid dir')
-    parser.add_argument('--use_init', action='store_true', help='use pretrained weights')
+    parser.add_argument('--use_init', action='store_true', help='use pretrained weights from resnet18')
+    parser.add_argument('--load_weights', help='load customized trained weights')
+    parser.add_argument('--lr_step', type=int, default=1, help='learning rate scheduler step size')
+    parser.add_argument('--loss', default='inv', help='loss type: inv, for, cons')
+    parser.add_argument('--data', default='200k', help='200k or 30k')
     args = parser.parse_args()
     run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,
         num_epochs=args.epoch, nwork=args.nwork, train_num=args.train_size,
-        valid_num=args.valid_size, use_pretrained=args.use_init)
+        valid_num=args.valid_size, use_pretrained=args.load_weights, lr_step=args.lr_step, 
+        loss_type=args.loss, datasize=args.data)

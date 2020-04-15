@@ -124,7 +124,7 @@ def predict(data_num, model_path, experiment_tag, size, transform, random_init):
             inputs1 = data['img1'].cuda()
             inputs2 = data['img2'].cuda()
             labels = data['poke'].cuda()
-            inv_pred, _, _ = model(inputs1, inputs2, labels)
+            inv_pred, _, _, _= model(inputs1, inputs2, labels)
             inv_pred = inv_pred.cpu().numpy()
             pred_pokes.append(inv_pred)
             true_pokes.append(data['poke'].numpy())
