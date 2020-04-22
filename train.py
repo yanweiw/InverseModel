@@ -161,7 +161,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
         pokeset = PokeDataset(data_dir, start_label, end_label, size=valid_num_per_dir, transform=data_transforms)
         list_of_valid_sets.append(pokeset)
     valid_sets = ConcatDataset(list_of_valid_sets)
-    valid_loader = DataLoader(valid_sets, batch_size=bsize, shuffle=False, num_workers=nwork)
+    valid_loader = DataLoader(valid_sets, batch_size=bsize, shuffle=True, num_workers=nwork)
     dataloaders = {'train': train_loader, 'val': valid_loader}
 
     # write to tensorboard images and model graphs
