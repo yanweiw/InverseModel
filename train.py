@@ -240,7 +240,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                     if loss_type == 'inv':
                         loss = inv_loss
                     if loss_type == 'for':
-                        loss = inv_loss + 0.1*for_loss
+                        loss = inv_loss + for_loss
                     if loss_type == 'cons':
                         loss = inv_loss + for_loss + 0.1*cons_loss
 
@@ -255,9 +255,86 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                         writer.add_scalar('training_loss', loss.item(),
                             epoch*len(train_loader) + batch_iter)
                             # len(train_loader) gives how many batches are there in a loader
+                        writer.add_scalar('train_inv_loss', inv_loss.item(), 
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_scalar('train_for_loss', for_loss.item(),
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_pred', inv_pred,
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_pred0', inv_pred[:, 0],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_pred1', inv_pred[:, 1],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_pred2', inv_pred[:, 2],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_pred3', inv_pred[:, 3],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_pred4', inv_pred[:, 4],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_pred5', inv_pred[:, 5],
+                            epoch*len(train_loader) + batch_iter)
+                        # gt
+                        writer.add_histogram('train_inv_gt', labels,
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_gt0', labels[:, 0],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_gt1', labels[:, 1],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_gt2', labels[:, 2],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_gt3', labels[:, 3],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_gt4', labels[:, 4],
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_inv_gt5', labels[:, 5],
+                            epoch*len(train_loader) + batch_iter)   
+                        #                      
+                        writer.add_histogram('train_for_pred', for_pred,
+                            epoch*len(train_loader) + batch_iter)
+                        writer.add_histogram('train_state2', state2,
+                            epoch*len(train_loader) + batch_iter)
                 else:
                     writer.add_scalar('valid_loss', loss.item(),
                         epoch*len(valid_loader) + batch_iter)
+                    writer.add_scalar('valid_inv_loss', inv_loss.item(),
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_scalar('valid_for_loss', for_loss.item(),
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_pred', inv_pred,
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_pred0', inv_pred[:, 0],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_pred1', inv_pred[:, 1],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_pred2', inv_pred[:, 2],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_pred3', inv_pred[:, 3],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_pred4', inv_pred[:, 4],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_pred5', inv_pred[:, 5],
+                        epoch*len(valid_loader) + batch_iter)
+                    # gt 
+                    writer.add_histogram('valid_inv_gt', labels,
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_gt0', labels[:, 0],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_gt1', labels[:, 1],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_gt2', labels[:, 2],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_gt3', labels[:, 3],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_gt4', labels[:, 4],
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_inv_gt5', labels[:, 5],
+                        epoch*len(valid_loader) + batch_iter)   
+                    # 
+                    writer.add_histogram('valid_for_pred', for_pred,
+                        epoch*len(valid_loader) + batch_iter)
+                    writer.add_histogram('valid_state2', state2,
+                        epoch*len(valid_loader) + batch_iter)
+
 
         # print training losses
         train_loss = running_losses['train'] / (len(train_dirs)*train_num_per_dir)
