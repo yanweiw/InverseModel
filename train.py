@@ -112,7 +112,7 @@ class Siamese(nn.Module):
 
 
 def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
-                    train_num, valid_num, use_pretrained, lr_step, loss_type, datasize):
+                    train_num, valid_num, use_pretrained, lr_step, loss_type, datasize, for_lambda):
     # set seed
     # torch.manual_seed(seed)
     # torch.backends.cudnn.deterministic = True
@@ -240,7 +240,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                     if loss_type == 'inv':
                         loss = inv_loss
                     if loss_type == 'for':
-                        loss = inv_loss + for_loss
+                        loss = inv_loss + for_lambda*for_loss
                     if loss_type == 'cons':
                         loss = inv_loss + for_loss + 0.1*cons_loss
 
@@ -257,7 +257,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                             # len(train_loader) gives how many batches are there in a loader
                         writer.add_scalar('train_inv_loss', inv_loss.item(), 
                             epoch*len(train_loader) + batch_iter)
-                        writer.add_scalar('train_for_loss', for_loss.item(),
+                        writer.add_scalar('train_for_loss', for_lambda*for_loss.item(),
                             epoch*len(train_loader) + batch_iter)
                         writer.add_histogram('train_inv_pred', inv_pred,
                             epoch*len(train_loader) + batch_iter)
@@ -298,7 +298,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
                         epoch*len(valid_loader) + batch_iter)
                     writer.add_scalar('valid_inv_loss', inv_loss.item(),
                         epoch*len(valid_loader) + batch_iter)
-                    writer.add_scalar('valid_for_loss', for_loss.item(),
+                    writer.add_scalar('valid_for_loss', for_lambda*for_loss.item(),
                         epoch*len(valid_loader) + batch_iter)
                     writer.add_histogram('valid_inv_pred', inv_pred,
                         epoch*len(valid_loader) + batch_iter)
@@ -365,7 +365,7 @@ def run_experiment(experiment_tag, seed, bsize, lr, num_epochs, nwork,
     # save best model weights
     print("saving model's learned parameters...")
     save_path = 'weights/run' + str(seed).zfill(3) + '_' + experiment_tag + '_ep' + str(num_epochs) +'.pth'
-    torch.save(model.state_dict(), save_path)
+    torch.save(best_model_wts, save_path)
     print("model saved to ", save_path)
     print()
     writer.close()
@@ -387,8 +387,9 @@ if __name__ == '__main__':
     parser.add_argument('--lr_step', type=int, default=1, help='learning rate scheduler step size')
     parser.add_argument('--loss', default='inv', help='loss type: inv, for, cons')
     parser.add_argument('--data', default='200k', help='200k or 30k')
+    parser.add_argument('--for_lambda', type=float, default=1, help='lambda for forward loss')
     args = parser.parse_args()
     run_experiment(experiment_tag=args.tag, seed=args.seed, bsize=args.bsize, lr=args.lr,
         num_epochs=args.epoch, nwork=args.nwork, train_num=args.train_size,
         valid_num=args.valid_size, use_pretrained=args.load_weights, lr_step=args.lr_step, 
-        loss_type=args.loss, datasize=args.data)
+        loss_type=args.loss, datasize=args.data, for_lambda=args.for_lambda)
